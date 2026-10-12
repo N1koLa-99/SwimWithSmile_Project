@@ -24,6 +24,18 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 12l6-6 6 6"/></svg>',
+    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14 14.6c.8-.4 1.6-.6 2.5-.6 2.8 0 5 2.4 5 5.4"/></svg>',
+    arrowR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="3"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>',
+    menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v13M6 12l6 6 6-6"/></svg>',
   };
 
   /* ---------- Помощници ---------- */
@@ -93,105 +105,34 @@
   const route = (re, handler) => routes.push({ re, handler });
   function navigate(hash) { location.hash = hash; }
 
+  // Всеки екран може да регистрира почистване (анимации, слушатели),
+  // което се изпълнява преди следващия екран.
+  let _cleanup = [];
+  const onLeave = (fn) => _cleanup.push(fn);
+  let _lastPath = null;
+
   async function render() {
     const hash = location.hash.replace(/^#/, '') || '/';
-    // защита: ако не е логнат треньор и не е родителски път
+    _cleanup.splice(0).forEach(fn => { try { fn(); } catch {} });
+    closeModal();
+    // нов екран → отгоре; презареждане на същия (напр. след запис) → запазва позицията
+    const base = hash.split('/').slice(0, 3).join('/');
+    if (base !== _lastPath) window.scrollTo(0, 0);
+    _lastPath = base;
     for (const r of routes) {
       const m = hash.match(r.re);
       if (m) { try { await r.handler(...m.slice(1)); } catch (e) { err(e); if (e.status === 401) navigate('/login'); } return; }
     }
-    navigate(API.isAuthed() ? '/app/calendar' : '/login');
+    navigate(API.isAuthed() ? '/app/calendar' : '/');
   }
   window.addEventListener('hashchange', render);
-
-  /* ============================================================
-     ЕКРАН: ВХОД (треньор + родител)
-     ============================================================ */
-  route(/^\/login$/, () => {
-    document.body.classList.remove('has-topbar');
-    app.innerHTML = `
-      <div class="aqua-bg"></div>
-      <div class="auth">
-        <aside class="auth-hero">
-          <div class="auth-hero-in rise">
-            <div class="brand-name" style="font-size:1.3rem;color:#fff;margin-bottom:18px">Swim<span style="color:var(--sky-200)">With</span>Smile</div>
-            <h1 class="auth-h">Плувай<br>с усмивка</h1>
-            <p class="auth-sub">Тренировки, картони и напредък на всяко дете — на едно място, красиво подредено.</p>
-            <div class="auth-feats">
-              <div class="feat">${I.cal}<span>График и тренировки</span></div>
-              <div class="feat">${I.kids}<span>Картони на децата</span></div>
-              <div class="feat">${I.trophy}<span>Постижения и награди</span></div>
-            </div>
-          </div>
-          <div class="wave-deco">
-            <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="rgba(255,255,255,.14)" d="M0,64 C240,110 480,10 720,48 C960,86 1200,20 1440,60 L1440,120 L0,120 Z"/><path fill="rgba(255,255,255,.10)" d="M0,80 C240,40 480,110 720,74 C960,38 1200,100 1440,72 L1440,120 L0,120 Z"/></svg>
-          </div>
-        </aside>
-
-        <main class="auth-panel">
-          <button class="gear-btn" id="cfgBtn" title="Настройки на връзката">${I.gear}</button>
-          <div class="auth-card rise">
-            <div class="seg">
-              <button class="seg-btn active" data-tab="coach">Треньор</button>
-              <button class="seg-btn" data-tab="parent">Родител</button>
-            </div>
-
-            <form id="coachForm" class="auth-form">
-              <h2>Добре дошъл 👋</h2>
-              <p class="subtle" style="margin-bottom:18px">Влез, за да управляваш тренировките.</p>
-              <div class="field"><label>Имейл</label><input class="input" name="email" type="email" placeholder="ime@example.com" required></div>
-              <div class="field"><label>Парола</label><input class="input" name="password" type="password" placeholder="••••••••" required></div>
-              <button class="btn btn-primary btn-block btn-lg" type="submit">Вход</button>
-            </form>
-
-            <form id="parentForm" class="auth-form" hidden>
-              <h2>Родителски достъп ${I.heart}</h2>
-              <p class="subtle" style="margin-bottom:18px">Виж напредъка на детето си.</p>
-              <div class="field"><label>Код от треньора (8 цифри)</label><input class="input" name="code" inputmode="numeric" maxlength="8" placeholder="12345678" required style="letter-spacing:5px;font-weight:700"></div>
-              <div class="field"><label>Дата на раждане на детето</label><input class="input" name="birth" type="date" required></div>
-              <button class="btn btn-sky btn-block btn-lg" type="submit">Виж детето</button>
-            </form>
-          </div>
-        </main>
-      </div>`;
-
-    $$('.seg-btn').forEach(b => b.onclick = () => {
-      $$('.seg-btn').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      const coach = b.dataset.tab === 'coach';
-      $('#coachForm').hidden = !coach; $('#parentForm').hidden = coach;
-    });
-
-    $('#coachForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Влизане…';
-      try {
-        const f = e.target;
-        await API.login(f.email.value.trim(), f.password.value);
-        toast('Здравей!', 'ok'); navigate('/app/calendar');
-      } catch (ex) { err(ex); btn.disabled = false; btn.textContent = 'Вход'; }
-    };
-
-    $('#parentForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Търсене…';
-      try {
-        const f = e.target;
-        const data = await API.parentDashboard(f.code.value.trim(), f.birth.value);
-        sessionStorage.setItem('sws.parent', JSON.stringify(data));
-        navigate('/parent/view');
-      } catch (ex) { err(ex); btn.disabled = false; btn.textContent = 'Виж детето'; }
-    };
-
-    $('#cfgBtn').onclick = openConfig;
-  });
 
   function openConfig() {
     modal({
       title: 'Връзка към API',
-      body: `<div class="field"><label>Адрес на сървъра (API)</label>
-        <input class="input" id="apiBaseIn" value="${esc(API.getBase())}" placeholder="https://...">
-        <span class="hint">Напр. локално: https://localhost:7174 · в Azure: адресът на твоя App Service.</span></div>`,
+      body: `<div class="field"><label>Адрес на сървъра (Google Apps Script)</label>
+        <input class="input" id="apiBaseIn" value="${esc(API.getBase())}" placeholder="https://script.google.com/macros/s/.../exec">
+        <span class="hint">Адресът на твоето Apps Script Web App — завършва на <b>/exec</b>.</span></div>`,
       footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="saveCfg">Запази</button>`
     });
     $('#saveCfg').onclick = () => { API.setBase($('#apiBaseIn').value.trim()); toast('Запазено', 'ok'); closeModal(); };
@@ -203,12 +144,23 @@
   function shell(active, content) {
     const u = API.getUser() || {};
     document.body.classList.add('has-topbar');
+    const navItems = [
+      { to: '/app/calendar', key: 'calendar', ico: I.cal, label: 'График' },
+      { to: '/app/children', key: 'children', ico: I.kids, label: 'Деца' },
+      { to: '/app/achievements', key: 'achievements', ico: I.trophy, label: 'Постижения' },
+      { to: '/app/team', key: 'team', ico: I.team, label: 'Отбор' },
+    ];
+    const navLink = it => `<a href="#${it.to}" class="${active===it.key?'active':''}">${it.ico}<span>${it.label}</span></a>`;
     app.innerHTML = `
       <div class="aqua-bg"></div>
       <header class="topbar">
-        <div class="brand">
-          <div class="brand-name">Swim<span>With</span>Smile</div>
-        </div>
+        <a class="brand" href="#/app/calendar" aria-label="SwimWithSmile — начало">
+          ${logoMark()}
+          <div class="brand-txt">
+            <div class="brand-name">Swim<span>With</span>Smile</div>
+            ${u.teamName ? `<div class="brand-team">${esc(u.teamName)}</div>` : ''}
+          </div>
+        </a>
         <nav class="nav">
           <a href="#/app/calendar" class="${active==='calendar'?'active':''}">${I.cal}<span>График</span></a>
           <a href="#/app/children" class="${active==='children'?'active':''}">${I.kids}<span>Деца</span></a>
@@ -219,13 +171,36 @@
           <button class="btn-icon btn-ghost" id="logoutBtn" title="Изход">${I.logout}</button>
         </div>
       </header>
-      <div class="wrap" id="view">${content}</div>`;
-    $('#logoutBtn').onclick = () => { API.logout(); navigate('/login'); };
+      <div class="wrap" id="view">${content}</div>
+      <nav class="bottom-nav" aria-label="Основна навигация">
+        ${navItems.map(navLink).join('')}
+      </nav>`;
+    $('#logoutBtn').onclick = () => {
+      modal({
+        title: 'Изход',
+        body: `<p>Сигурни ли сте, че искате да излезете от профила си?</p>`,
+        footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="confirmLogout">${I.logout} Изход</button>`
+      });
+      $('#confirmLogout').onclick = () => { closeModal(); API.logout(); navigate('/'); };
+    };
   }
   const guard = () => { if (!API.isAuthed()) { navigate('/login'); return false; } return true; };
 
+  // Логото: лице, чиято „уста" е вълна — плуване с усмивка
+  let _logoN = 0;
+  function logoMark(size = 38) {
+    const id = 'lg' + (++_logoN);
+    return `<svg class="logo-mark" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">
+      <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#46D6F7"/><stop offset="1" stop-color="#1F5FD6"/></linearGradient></defs>
+      <rect width="40" height="40" rx="12" fill="url(#${id})"/>
+      <circle cx="14.5" cy="14.5" r="2.3" fill="#fff"/><circle cx="25.5" cy="14.5" r="2.3" fill="#fff"/>
+      <path d="M8 22.5c2 0 2-1.8 4-1.8s2 1.8 4 1.8 2-1.8 4-1.8 2 1.8 4 1.8 2-1.8 4-1.8 2 1.8 4 1.8" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".85"/>
+      <path d="M13 27.6c3.9 3.3 10.1 3.3 14 0" stroke="#FFC53D" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  }
+
   // Продължава в app.js (част 2)
-  window.__SWS = { app, shell, guard, modal, closeModal, toast, err, navigate, render, route, routes,
+  window.__SWS = { app, shell, guard, modal, closeModal, toast, err, navigate, render, route, routes, onLeave, logoMark, openConfig,
     I, esc, $, $$, initials, fmtDate, fmtTime, ageFrom, toDateInput, MONTHS, DOW, MOODS, MOOD_EMOJI, GENDERS, pad };
 })();
 
@@ -287,19 +262,32 @@
   });
 
   let calRenderToken = 0;
+  let _gcalById = {};
 
   async function drawCalendar() {
     const myToken = ++calRenderToken;
     const t = $('#calTitle'); if (!t) return;
     t.textContent = `${MONTHS[calState.m]} ${calState.y}`;
     const body = $('#calBody'); body.innerHTML = loading();
-    let list = [];
-    try { list = await API.sessions(calState.y, calState.m + 1) || []; } catch (e) { err(e); }
+    let list = [], calEvents = [];
+    try {
+      [list, calEvents] = await Promise.all([
+        API.sessions(calState.y, calState.m + 1).then(r => r || []),
+        API.calendarEvents(calState.y, calState.m + 1).then(r => r || []).catch(() => []) // ако още не е разрешен Календарът, просто няма събития
+      ]);
+    } catch (e) { err(e); }
     if (myToken !== calRenderToken) return; // потребителят вече е сменил месеца
     await ensureCoachColors();
 
     const byDay = {};
     list.forEach(s => { const d = new Date(s.sessionDate).getDate(); (byDay[d] ||= []).push(s); });
+    const byDayCal = {};
+    _gcalById = {};
+    calEvents.forEach(ev => {
+      const d = new Date(ev.date + 'T00:00:00').getDate();
+      (byDayCal[d] ||= []).push(ev);
+      _gcalById[ev.id] = ev;
+    });
 
     const first = new Date(calState.y, calState.m, 1);
     const offset = (first.getDay() + 6) % 7; // понеделник = 0
@@ -323,15 +311,42 @@
         const title = `${fmtTime(s.startTime)} · ${s.coachName || 'Треньор'} · ${cnt} деца`;
         return `<div class="cal-ev" data-sid="${s.id}" style="background:${coachColor(s.coachId)}" title="${esc(title)}">${esc(label)}</div>`;
       }).join('') + (rest > 0 ? `<div class="cal-more">+${rest} още</div>` : '');
+      // Събития от Google Calendar (само за преглед)
+      const calArr = (byDayCal[d] || []).slice().sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
+      const calShown = calArr.slice(0, 2);
+      const calRest = calArr.length - calShown.length;
+      const calPills = calShown.map(ev => {
+        const time = ev.allDay ? '' : (fmtTime(ev.startTime) + ' ');
+        const title = `${ev.allDay ? 'Цял ден' : fmtTime(ev.startTime)} · ${ev.title} (Google Calendar)`;
+        return `<div class="cal-ev cal-gcal" data-gcal="${esc(ev.id)}" title="${esc(title)}">📅 ${esc(time + ev.title)}</div>`;
+      }).join('') + (calRest > 0 ? `<div class="cal-more">+${calRest} 📅</div>` : '');
       cells += `<div class="cal-cell ${isToday?'today':''} ${dow>=5?'weekend':''}" data-day="${d}">
         <div class="cal-daynum">${d}</div>
-        <div class="cal-events">${events}</div>
+        <div class="cal-events">${events}${calPills}</div>
       </div>`;
     }
-    const legend = Object.values(_coachColors || {}).map(cc => `<span class="legend-item"><span class="dot" style="background:${cc.color}"></span>${esc(cc.name)}</span>`).join('');
+    let legend = Object.values(_coachColors || {}).map(cc => `<span class="legend-item"><span class="dot" style="background:${cc.color}"></span>${esc(cc.name)}</span>`).join('');
+    if (calEvents.length) legend += `<span class="legend-item"><span class="dot" style="background:#6366F1"></span>📅 Google Calendar</span>`;
     body.innerHTML = `${legend ? `<div class="coach-legend">${legend}</div>` : ''}<div class="cal-grid">${cells}</div>`;
-    $$('.cal-cell[data-day]', body).forEach(c => c.onclick = () => dayModal(+c.dataset.day, byDay[+c.dataset.day] || []));
+    $$('.cal-cell[data-day]', body).forEach(c => c.onclick = () => dayModal(+c.dataset.day, byDay[+c.dataset.day] || [], byDayCal[+c.dataset.day] || []));
     $$('.cal-ev[data-sid]', body).forEach(el => el.onclick = (e) => { e.stopPropagation(); sessionDetail(el.dataset.sid); });
+    $$('.cal-ev[data-gcal]', body).forEach(el => el.onclick = (e) => { e.stopPropagation(); gcalDetail(el.dataset.gcal); });
+  }
+
+  // Изглед само за преглед на събитие от Google Calendar
+  function gcalDetail(id) {
+    const ev = _gcalById[id];
+    if (!ev) return;
+    const when = ev.allDay ? 'Цял ден' : `${fmtTime(ev.startTime)}${ev.endTime ? '–' + fmtTime(ev.endTime) : ''}`;
+    modal({ title: ev.title || 'Събитие', body: `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <span class="chip">${I.cal}&nbsp;${fmtDate(ev.date)}</span>
+        <span class="chip">${I.clock}&nbsp;${esc(when)}</span>
+        ${ev.location ? `<span class="chip">${I.pin}&nbsp;${esc(ev.location)}</span>` : ''}
+      </div>
+      ${ev.description ? `<div class="info-item"><div class="k">Описание</div><div class="v">${esc(ev.description)}</div></div>` : ''}
+      <p class="subtle" style="margin-top:14px">📅 От Google Calendar · само за преглед</p>`,
+      footer: `<button class="btn btn-primary" data-close>Затвори</button>` });
   }
 
   // Обогатява клетките на календара с имената на децата (в стил Apple Calendar), без да блокира първото рисуване
@@ -359,9 +374,10 @@
     });
   }
 
-  function dayModal(day, sessions) {
+  function dayModal(day, sessions, calEvents) {
+    calEvents = calEvents || [];
     const dateStr = `${day} ${MONTHS[calState.m]} ${calState.y}`;
-    const rows = sessions.length ? sessions.sort((a,b)=>a.startTime.localeCompare(b.startTime)).map(s => `
+    const rows = sessions.length ? sessions.slice().sort((a,b)=>a.startTime.localeCompare(b.startTime)).map(s => `
       <div class="slot" data-sid="${s.id}" style="border-left:5px solid ${coachColor(s.coachId)}">
         <div class="slot-time">${fmtTime(s.startTime)}</div>
         <div class="slot-main"><div class="t">${esc(s.coachName || 'Треньор')}</div>
@@ -369,10 +385,21 @@
         ${I.chevR}
       </div>`).join('') : emptyState(I.cal, 'Няма тренировки', 'Добави първата за този ден.');
 
-    modal({ title: dateStr, body: `<div class="stagger" style="display:grid;gap:12px">${rows}</div>`,
+    const calRows = calEvents.length ? `
+      <div style="margin-top:6px;font-weight:600;font-family:var(--font-head);display:flex;align-items:center;gap:6px">📅 Google Calendar</div>
+      ${calEvents.slice().sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||'')).map(ev => `
+      <div class="slot" data-gcal="${esc(ev.id)}" style="border-left:5px solid #6366F1">
+        <div class="slot-time">${ev.allDay ? 'ден' : fmtTime(ev.startTime)}</div>
+        <div class="slot-main"><div class="t">${esc(ev.title)}</div>
+          ${ev.location?`<div class="s">${esc(ev.location)}</div>`:''}</div>
+        ${I.chevR}
+      </div>`).join('')}` : '';
+
+    modal({ title: dateStr, body: `<div class="stagger" style="display:grid;gap:12px">${rows}${calRows}</div>`,
       footer: `<button class="btn btn-ghost" data-close>Затвори</button><button class="btn btn-primary" id="addOnDay">${I.plus} Добави</button>` });
     $('#addOnDay').onclick = () => { closeModal(); sessionForm(null, new Date(calState.y, calState.m, day)); };
     $$('.slot[data-sid]').forEach(el => el.onclick = () => { closeModal(); sessionDetail(el.dataset.sid); });
+    $$('.slot[data-gcal]').forEach(el => el.onclick = () => { closeModal(); gcalDetail(el.dataset.gcal); });
   }
 
   // Списък с часове в 24-часов формат (06:00–22:00, на 15 минути)
@@ -855,16 +882,6 @@
     modal({ title: c ? 'Редакция на картон' : 'Ново дете', large: true, body: `
       <div class="form-section">
         <div class="form-section-title">${I.kids} Основна информация</div>
-        <div class="field"><label>Снимка</label>
-          <div class="photo-up">
-            <div class="photo-preview" id="c_photo_prev">${c?.photoUrl?`<img src="${esc(c.photoUrl)}" alt="">`:I.kids}</div>
-            <div style="flex:1;min-width:0">
-              <input type="file" id="c_photo_file" accept="image/*" class="input">
-              <span class="hint" id="c_photo_hint">JPG или PNG, до 8 MB — качва се от устройството ти</span>
-            </div>
-          </div>
-          <input type="hidden" id="c_photo" value="${esc(c?.photoUrl||'')}">
-        </div>
         <div class="grid-2">${field('Име','c_fn',c?.firstName)}${field('Фамилия','c_ln',c?.lastName)}</div>
         <div class="grid-2">${field('Дата на раждане','c_bd',toDateInput(c?.birthDate),'date')}
           <div class="field"><label>Пол</label><select class="select" id="c_g">${genderOpts}</select></div></div>
@@ -890,24 +907,9 @@
       </div>`,
       footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="c_save">${I.check} Запази</button>` });
 
-    // Качване на снимка от устройството
-    const fileIn = $('#c_photo_file');
-    if (fileIn) fileIn.onchange = async () => {
-      const f = fileIn.files[0]; if (!f) return;
-      const hint = $('#c_photo_hint'), saveBtn = $('#c_save');
-      hint.textContent = 'Качване…'; saveBtn.disabled = true;
-      try {
-        const r = await API.uploadPhoto(f);
-        $('#c_photo').value = r.url;
-        $('#c_photo_prev').innerHTML = `<img src="${esc(r.url)}" alt="">`;
-        hint.textContent = 'Снимката е качена ✓';
-      } catch (e) { hint.textContent = 'Грешка при качване'; err(e); }
-      finally { saveBtn.disabled = false; }
-    };
-
     $('#c_save').onclick = async () => {
       const dto = { firstName:$('#c_fn').value.trim(), lastName:$('#c_ln').value.trim(), birthDate:$('#c_bd').value,
-        photoUrl:$('#c_photo').value.trim()||null, gender:$('#c_g').value||null, diagnosis:$('#c_diag').value.trim()||null,
+        photoUrl:null, gender:$('#c_g').value||null, diagnosis:$('#c_diag').value.trim()||null,
         objectiveCondition:$('#c_obj').value.trim()||null, level:$('#c_lvl').value.trim()||null,
         allergiesMedical:$('#c_alg').value.trim()||null, parentContact:$('#c_pc').value.trim()||null,
         emergencyContact:$('#c_ec').value.trim()||null, goals:$('#c_goals').value.trim()||null,
@@ -1070,10 +1072,10 @@
     app.innerHTML = `
       <div class="aqua-bg"></div>
       <div class="parent-top">
-        <div class="brand-name">Swim<span>With</span>Smile</div>
-        <button class="btn btn-ghost btn-sm" id="pOut" style="margin-left:auto">${I.logout} Изход</button>
+        <div class="brand">${S.logoMark()}<div class="brand-name">Swim<span>With</span>Smile</div></div>
+        <button class="btn btn-glass btn-sm" id="pOut" style="margin-left:auto">${I.logout} Изход</button>
       </div>
-      <div class="wrap">
+      <div class="wrap wrap-parent">
         <div class="profile-head rise">${ph}
           <div class="profile-info"><h1>${esc(c.firstName)} ${esc(c.lastName)}</h1>
             <div class="row"><span class="badge">${c.ageYears ?? ageFrom(c.birthDate)} години</span>${c.level?`<span class="badge">${esc(c.level)}</span>`:''}</div>
@@ -1098,6 +1100,13 @@
   st.textContent = `
     .up-arrow{display:inline-flex;vertical-align:middle;color:#7BC96F}
     .up-arrow svg{width:15px;height:15px}
+    .cal-ev.cal-gcal{background:#EEF0FF !important;color:#3730A3 !important;border:1px dashed #A5B4FC;font-weight:600}
+    .trend{display:inline-flex;align-items:center;gap:1px;vertical-align:middle;font-family:var(--font-head);font-weight:800;font-size:.78rem;padding:2px 6px 2px 4px;border-radius:var(--r-pill)}
+    .trend svg{width:13px;height:13px;flex-shrink:0}
+    .trend-up{color:#1B7A47;background:#D9F7E6}
+    .trend-down{color:#B0303B;background:#FBD9DC}
+    .trend-legend{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;font-size:.86rem}
+    .trend-legend b{font-weight:800}
     .att-seg{display:inline-flex;gap:4px;background:var(--sky-50);border-radius:var(--r-pill);padding:4px}
     .att-opt{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:var(--r-pill);font-family:var(--font-head);font-weight:600;font-size:.82rem;color:var(--ink-2);transition:all .15s;white-space:nowrap}
     .att-opt svg{width:15px;height:15px}
@@ -1118,6 +1127,6 @@
   `;
   document.head.appendChild(st);
 
-  const render = S.render;
-  render();
+  // Първото рисуване става след като се заредят всички скриптове (вкл. landing.js)
+  document.addEventListener('DOMContentLoaded', () => S.render());
 })();

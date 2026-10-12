@@ -1,7 +1,7 @@
 /* ============================================================
    SwimWithSmile — Дизайн система
    Правило 60-30-10:  60% бяло · 30% светло синьо · 10% тъмно синьо
-   Типография: Rubik (заглавия) + Manrope (текст)
+   Типография: Unbounded (дисплей) + Manrope (интерфейс и текст)
    ============================================================ */
 
 :root {
@@ -51,8 +51,19 @@
   --gap: 20px;
   --header-h: 72px;
 
-  --font-head: 'Rubik', system-ui, sans-serif;
+  --font-display: 'Unbounded', 'Manrope', system-ui, sans-serif;
+  --font-head: 'Manrope', system-ui, sans-serif;
   --font-body: 'Manrope', system-ui, sans-serif;
+
+  /* --- морски акценти (сайт + детайли) --- */
+  --abyss:  #020B1F;
+  --deep:   #041739;
+  --aqua:   #46D6F7;
+  --aqua-2: #1FA8F0;
+  --sun:    #FFC53D;
+  --sun-2:  #FFAE1A;
+  --coral:  #FF6B5B;
+  --line:   #E3ECFA;
 
   --ease: cubic-bezier(.22,.61,.36,1);
   --ease-out: cubic-bezier(.16,1,.3,1);
@@ -75,7 +86,15 @@ a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
 ::selection { background: var(--sky-200); }
 
-h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height: 1.15; letter-spacing: -.02em; }
+h1, h2, h3, h4 { font-family: var(--font-head); font-weight: 800; color: var(--navy); line-height: 1.15; letter-spacing: -.02em; }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* ясен фокус само при клавиатура */
+:focus-visible { outline: 3px solid var(--aqua-2); outline-offset: 3px; border-radius: 10px; }
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: none; }
+html { scroll-behavior: auto; -webkit-tap-highlight-color: transparent; }
+body.menu-open { overflow: hidden; }
 
 .app-root { min-height: 100dvh; display: flex; flex-direction: column; }
 
@@ -104,8 +123,8 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
    ============================================================ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-  font-family: var(--font-head); font-weight: 600; font-size: .98rem;
-  padding: 13px 22px; border-radius: var(--r-pill);
+  font-family: var(--font-head); font-weight: 700; font-size: .96rem; letter-spacing: -.005em;
+  padding: 13px 22px; border-radius: var(--r-pill); position: relative; isolation: isolate;
   transition: transform .18s var(--ease), box-shadow .25s var(--ease), background .2s, filter .2s;
   white-space: nowrap; user-select: none;
 }
@@ -127,6 +146,28 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
 .btn-ghost:hover { background: var(--sky-50); border-color: var(--sky-200); transform: translateY(-1px); }
 
 .btn-soft { background: var(--sky-100); color: var(--navy); }
+
+/* слънчев CTA — основният бутон на сайта */
+.btn-sun {
+  background: linear-gradient(180deg, #FFD466, var(--sun) 55%, var(--sun-2));
+  color: #1D1405; box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 -2px 0 rgba(160,90,0,.18) inset, 0 12px 28px -8px rgba(255,174,26,.65);
+}
+.btn-sun:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 -2px 0 rgba(160,90,0,.18) inset, 0 18px 36px -10px rgba(255,174,26,.8); }
+.btn-sun svg, .btn-primary svg, .btn-sky svg { transition: transform .25s var(--ease-out); }
+.btn-sun:hover svg, .btn-primary:hover svg:last-child { transform: translateX(3px); }
+
+/* стъкло — върху тъмен/воден фон */
+.btn-glass {
+  background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.22);
+  -webkit-backdrop-filter: blur(12px) saturate(140%); backdrop-filter: blur(12px) saturate(140%);
+}
+.btn-glass:hover { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.34); transform: translateY(-1px); }
+
+.btn-ink { background: var(--deep); color: #fff; box-shadow: 0 10px 24px -10px rgba(4,23,57,.6); }
+.btn-ink:hover { transform: translateY(-2px); background: #0A2552; }
+
+.btn-xl { padding: 17px 28px; font-size: 1.04rem; }
+.btn-xl svg { width: 20px; height: 20px; }
 .btn-soft:hover { background: var(--sky-200); }
 
 .btn-danger { background: #fff; color: var(--red); box-shadow: var(--shadow-sm); border: 1.5px solid #FBD5D9; }
@@ -213,7 +254,8 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
 /* предпазна мрежа: икони без зададен размер да не се разливат */
 .slot-main svg, .info-item svg, .tl-date svg { width:16px; height:16px; }
 
-.pagettl { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 800; }
+.pagettl { font-family: var(--font-display); font-size: clamp(1.45rem, 3vw, 2rem); font-weight: 700; letter-spacing: -.035em; }
+.page-eyebrow { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: var(--brand); margin-bottom: 6px; }
 .subtle { color: var(--muted); }
 .divider { height:1px; background: var(--sky-100); margin: 18px 0; border:0; }
 
@@ -229,9 +271,13 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
   background: rgba(255,255,255,.82); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--sky-100);
 }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand-name { font-family: var(--font-head); font-weight: 800; font-size: 1.18rem; color: var(--navy); letter-spacing:-.02em; }
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.logo-mark { flex-shrink: 0; filter: drop-shadow(0 6px 12px rgba(31,95,214,.28)); transition: transform .5s var(--ease-out); }
+.brand:hover .logo-mark { transform: rotate(-8deg) scale(1.05); }
+.brand-txt { display: flex; flex-direction: column; min-width: 0; }
+.brand-name { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; color: var(--navy); letter-spacing: -.03em; white-space: nowrap; }
 .brand-name span { color: var(--brand-light); }
+.brand-team { font-size: .72rem; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; margin-top: 1px; }
 
 .nav { display: flex; gap: 6px; margin-left: 10px; }
 .nav a {
@@ -446,7 +492,7 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
 /* ============================================================
    Модал
    ============================================================ */
-.modal-host { position: fixed; inset: 0; z-index: 90; display:grid; place-items:center; padding: 18px; }
+.modal-host { position: fixed; inset: 0; z-index: 90; display:grid; place-items:center; padding: 18px; overscroll-behavior: contain; }
 .modal-host[hidden] { display:none; }
 .modal-scrim { position:absolute; inset:0; background: rgba(6,26,69,.42); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); animation: fade .25s var(--ease); }
 .modal {
@@ -456,7 +502,7 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
 }
 .modal-lg { width: min(760px, 100%); }
 .modal-head { display:flex; align-items:center; justify-content:space-between; padding: 22px 24px; border-bottom:1px solid var(--sky-50); position:sticky; top:0; background:#fff; z-index:2; }
-.modal-head h3 { font-size:1.25rem; }
+.modal-head h3 { font-size:1.2rem; letter-spacing: -.025em; }
 .modal-body { padding: 22px 24px; }
 .modal-foot { padding: 16px 24px 22px; display:flex; gap:12px; justify-content:flex-end; }
 .x-btn { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; color:var(--muted); transition: all .15s; }
@@ -480,6 +526,7 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
    ============================================================ */
 @keyframes fade { from { opacity:0; } }
 @keyframes pop { from { opacity:0; transform: translateY(14px) scale(.97); } }
+@keyframes sheetUp { from { transform: translateY(100%); } }
 @keyframes toastIn { from { opacity:0; transform: translateY(16px); } }
 @keyframes rise { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform:none; } }
 .rise { animation: rise .5s var(--ease-out) both; }
@@ -536,8 +583,22 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
   .kid-body { padding:10px 14px 10px 0; }
   .profile-head { flex-direction:column; text-align:center; }
   .profile-info .row { justify-content:center; }
-  .modal-foot { flex-direction: column-reverse; }
+  .modal-foot { flex-direction: column-reverse; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
   .modal-foot .btn { width:100%; }
+  /* модалите стават „лист" отдолу — като в нативно приложение */
+  .modal-host { place-items: end center; padding: 0; }
+  .modal { width: 100%; max-height: 92dvh; border-radius: 26px 26px 0 0; animation: sheetUp .42s var(--ease-out); }
+  .modal-lg { width: 100%; }
+  .modal-head { padding: 22px 20px 16px; }
+  .modal-head::before { content:""; position:absolute; top:8px; left:50%; width:40px; height:5px; margin-left:-20px; border-radius:99px; background: var(--sky-100); }
+  .modal-body { padding: 18px 20px; }
+  .modal-foot { padding-left: 20px; padding-right: 20px; }
+  .tabs { margin: 18px -4px 22px; }
+  .card-pad { padding: 16px; }
+  .info-grid { grid-template-columns: repeat(auto-fit,minmax(122px,1fr)); gap:8px; }
+  .info-item { padding:10px 12px 11px; }
+  .info-item .k { font-size:.63rem; }
+  .info-item .v { font-size:.9rem; margin-top:4px; }
 }
 
 /* ============================================================
@@ -577,7 +638,7 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
 }
 
 /* --- родителски изглед --- */
-.parent-top { background: linear-gradient(150deg, var(--navy), var(--brand)); color:#fff; padding: calc(16px + env(safe-area-inset-top, 0px)) clamp(16px,4vw,34px) 16px; display:flex; align-items:center; gap:14px; }
+.parent-top { background: linear-gradient(150deg, var(--deep), var(--navy) 60%, var(--brand)); color:#fff; padding: calc(16px + env(safe-area-inset-top, 0px)) clamp(16px,4vw,34px) 16px; display:flex; align-items:center; gap:14px; }
 .parent-top .brand-name { color:#fff; }
 .parent-top .brand-name span { color: var(--sky-200); }
 .reward-tag { display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:.8rem; color:#6b4a05; background: linear-gradient(135deg,#FFE29A,var(--gold)); padding:5px 12px; border-radius: var(--r-pill); }
