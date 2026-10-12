@@ -11,3 +11,25 @@
 
 # Папката apps-script/ съдържа само бекенд кода (Code.gs) —
 # тя не е част от сайта, но и да се качи, не съдържа тайни.
+
+# Service worker — винаги свеж, за да се обновява кешът при нова версия
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# CSS/JS са с ?v=… в адреса → могат да се кешират дълго
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

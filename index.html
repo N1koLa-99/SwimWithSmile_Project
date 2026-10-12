@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0A2A6B" />
   <meta name="google" content="notranslate" />
-  <title>SwimWithSmile — дневникът на треньорите по плуване</title>
-  <meta name="description" content="График, картони на децата, дневник на тренировките, напредък и награди — общото място на треньорския отбор по плуване. Родителите виждат напредъка с код." />
+  <title>SwimWithSmile — дневникът на треньора по плуване</title>
+  <meta name="description" content="Безплатен дневник за треньори и плувни клубове: график с Google Calendar, присъствие с едно докосване, картони със спешни данни, умения, нива и награди. Родителите виждат напредъка с код." />
   <meta property="og:title" content="SwimWithSmile — плувай с усмивка" />
   <meta property="og:description" content="Общият дневник на треньорския отбор: график, картони, напредък и награди на децата." />
   <meta property="og:type" content="website" />
@@ -19,19 +19,33 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="css/styles.css?v=30" />
-  <link rel="stylesheet" href="css/landing.css?v=30" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://script.google.com" crossorigin />
+  <link rel="stylesheet" href="css/styles.css?v=34" />
+  <link rel="stylesheet" href="css/landing.css?v=34" />
+  <link rel="stylesheet" href="css/app.css?v=34" />
+  <link rel="stylesheet" href="css/mobile.css?v=34" />
 </head>
 <body>
   <div id="app" class="app-root">
-    <!-- Съдържанието се рендира от JavaScript -->
+    <!-- Показва се за миг, докато JavaScript нарисува страницата -->
+    <div class="boot-splash" aria-label="Зареждане"><svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#46D6F7"/><stop offset="1" stop-color="#1F5FD6"/></linearGradient></defs><rect width="40" height="40" rx="12" fill="url(#bs)"/><circle cx="14.5" cy="14.5" r="2.3" fill="#fff"/><circle cx="25.5" cy="14.5" r="2.3" fill="#fff"/><path d="M13 27.6c3.9 3.3 10.1 3.3 14 0" stroke="#FFC53D" stroke-width="2.8" fill="none" stroke-linecap="round"/></svg></div>
   </div>
 
   <div id="toast-host" class="toast-host" aria-live="polite"></div>
   <div id="modal-host" class="modal-host" hidden></div>
 
-  <script src="js/api.js?v=30"></script>
-  <script src="js/app.js?v=30"></script>
-  <script src="js/landing.js?v=30"></script>
+  <script src="js/api.js?v=34" defer></script>
+  <script src="js/app.js?v=34" defer></script>
+  <script src="js/coach.js?v=34" defer></script>
+  <script src="js/parent.js?v=34" defer></script>
+  <script src="js/landing.js?v=34" defer></script>
+  <script>
+    // Офлайн кеш на файловете на сайта → моментално зареждане при второ отваряне
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
 </body>
 </html>

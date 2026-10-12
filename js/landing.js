@@ -271,7 +271,7 @@
   function siteNav() {
     const authed = API.isAuthed();
     const cta = authed
-      ? `<a class="btn btn-sun btn-sm" href="#/app/calendar">Към приложението ${I.arrowR}</a>`
+      ? `<a class="btn btn-sun btn-sm" href="#/app/today">Към приложението ${I.arrowR}</a>`
       : `<a class="nav-login" href="#/login">Вход</a><a class="btn btn-sun btn-sm" href="#/register">Създай отбор</a>`;
     return `
       <div class="scroll-progress" aria-hidden="true"></div>
@@ -286,7 +286,7 @@
       <div class="menu-sheet" id="menuSheet" aria-hidden="true">
         <nav>${NAV.map(([id, l], i) => `<button type="button" data-go="${id}" style="--i:${i}"><span class="lane-no">${{ how: '01', features: '02', parents: '04', pricing: '05', faq: '06' }[id]}</span>${l}</button>`).join('')}</nav>
         <div class="menu-cta">${authed
-          ? `<a class="btn btn-sun btn-lg btn-block" href="#/app/calendar">Към приложението ${I.arrowR}</a>`
+          ? `<a class="btn btn-sun btn-lg btn-block" href="#/app/today">Към приложението ${I.arrowR}</a>`
           : `<a class="btn btn-sun btn-lg btn-block" href="#/register">Създай отбор безплатно</a><a class="btn btn-glass btn-lg btn-block" href="#/login">Вход</a>`}</div>
       </div>`;
   }
@@ -327,7 +327,7 @@
     document.body.classList.add('is-site');
     onLeave(() => document.body.classList.remove('is-site'));
 
-    const marquee = ['График', 'Картони на децата', 'Присъствия', 'Какво плува', 'Настроение', 'Карти за напредък', 'Постижения и награди', 'Родителски достъп', 'Състезания', 'Покана за колега'];
+    const marquee = ['График + Google Calendar', 'Присъствие с едно докосване', 'Картони със спешни телефони', 'Умения и нива', 'Точки и награди', 'Състезания и лични рекорди', 'Родителски достъп', 'Имейл известия', 'Деца със СОП', 'Групи'];
 
     app.innerHTML = `
       ${siteNav()}
@@ -343,15 +343,15 @@
           </div>
           <div class="hero-in">
             <div class="hero-copy">
-              <div class="hero-badge" data-reveal="up"><span class="pulse"></span>Сезон 2026/27 · за треньори по плуване</div>
-              <h1 class="hero-h" data-reveal="words">${split('Тренирай децата.\nОстави хаоса\n*на* *брега.*')}</h1>
-              <p class="hero-sub" data-reveal="up" style="--d:.35s">Общият дневник на треньорския отбор: график, картони на децата, какво е плувал всеки и какво е постигнал. Двама треньори, един басейн и нито една изгубена бележка.</p>
+              <div class="hero-badge" data-reveal="up"><span class="pulse"></span>Безплатно · за треньори и плувни клубове</div>
+              <h1 class="hero-h" data-reveal="words">${split('Дневникът на\nтреньора\nпо *плуване.*')}</h1>
+              <p class="hero-sub" data-reveal="up" style="--d:.35s"><b>График, присъствие, картони и награди</b> за всяко дете — на едно място, от телефона. Родителите виждат напредъка, а ти — кой изпуска тренировки.</p>
               <div class="hero-ctas" data-reveal="up" style="--d:.5s">
                 <a class="btn btn-sun btn-xl" href="#/register">Създай отбор безплатно ${I.arrowR}</a>
                 <button class="btn btn-glass btn-xl" type="button" data-go="how">Виж как работи</button>
               </div>
               <ul class="hero-proof" data-reveal="up" style="--d:.65s">
-                <li>${I.check}Без банкова карта</li><li>${I.check}Готово за 2 минути</li><li>${I.check}Работи на телефона</li>
+                <li>${I.check}Без банкова карта</li><li>${I.check}Свързва се с Google Calendar</li><li>${I.check}Работи на телефона</li>
               </ul>
             </div>
 
@@ -387,9 +387,9 @@
             <div class="steps">
               ${laneRope('steps-rope')}
               ${[
-                ['Създай отбор', 'Регистрираш се и кръщаваш отбора си. Без инсталиране, без карта, направо от телефона.', I.user],
+                ['Създай отбор', 'Регистрираш се, кръщаваш отбора и добавяш децата и групите. Без инсталиране, направо от телефона.', I.user],
                 ['Покани колега', 'Изпращаш един линк на втория треньор. Вече виждате едни и същи деца, графици и бележки.', I.share],
-                ['Пишете заедно', 'След всяка тренировка: кой дойде, какво плува, какво постигна. Родителите виждат напредъка с код.', I.edit],
+                ['Отбелязвай на ръба на басейна', 'Отваряш „Днес“ и чукаш ✓ до всяко дете. Умения, награди и бележки — с едно докосване. Родителите виждат всичко с код.', I.check],
               ].map(([t, d, ic], i) => `
                 <article class="step" data-reveal="up" style="--d:${i * .12}s">
                   <div class="step-no"><span>${i + 1}</span></div>
@@ -412,7 +412,7 @@
 
             <div class="bento">
               <article class="tile tile-cal" data-reveal="up" data-tilt="5">
-                <div class="tile-txt"><span class="tile-k">${I.cal} График</span><h3>Един календар за целия отбор</h3><p>Всеки треньор е със свой цвят. С един поглед виждаш кой води, кога и колко деца идват.</p></div>
+                <div class="tile-txt"><span class="tile-k">${I.cal} График</span><h3>Графикът е и в Google Calendar</h3><p>Повтарящи се тренировки за цяла група с един клик. Всичко се появява само в календара на телефона ти.</p></div>
                 <div class="mini-cal" aria-hidden="true">
                   ${['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'нд'].map(d => `<b>${d}</b>`).join('')}
                   ${Array.from({ length: 14 }, (_, i) => {
@@ -423,7 +423,7 @@
               </article>
 
               <article class="tile tile-log" data-reveal="up" style="--d:.08s" data-tilt="6">
-                <div class="tile-txt"><span class="tile-k">${I.edit} Дневник</span><h3>Какво плува всяко дете</h3><p>Присъствие, упражнения, настроение и прогрес за деня. За секунди.</p></div>
+                <div class="tile-txt"><span class="tile-k">${I.check} Присъствие</span><h3>Кой дойде — с едно докосване</h3><p>Сигнал, когато дете изпусне 2 поредни тренировки. За децата със СОП постоянството е всичко.</p></div>
                 <div class="mini-log" aria-hidden="true">
                   <div class="ml-seg"><span class="on">${I.check} Присъства</span><span>Отсъства</span></div>
                   <div class="ml-field"><small>Какво плува</small><p>6×25 крака гръб, дишане настрани<span class="caret"></span></p></div>
@@ -440,12 +440,12 @@
               </article>
 
               <article class="tile tile-ach" data-reveal="up" style="--d:.08s" data-tilt="6">
-                <div class="tile-txt"><span class="tile-k">${I.trophy} Награди</span><h3>Постижения, които ти измисляш</h3><p>Първи 25 метра, скок от блок, тениска, медал. Децата ги обожават.</p></div>
+                <div class="tile-txt"><span class="tile-k">${I.trophy} Нива и точки</span><h3>От „Капка“ до „Кит“</h3><p>Свалихме коланчето? Без плавници? Всяко умение носи точки и ново ниво. Децата го обожават.</p></div>
                 <div class="medals" aria-hidden="true"><span>🏊</span><span>🥇</span><span>🚀</span><span>🐬</span><span>🔥</span></div>
               </article>
 
               <article class="tile tile-card" data-reveal="up" style="--d:.16s" data-tilt="6">
-                <div class="tile-txt"><span class="tile-k">${I.kids} Картони</span><h3>Всичко за детето на едно място</h3><p>Здравна информация, спешни контакти, цели, състезания и цялата история.</p></div>
+                <div class="tile-txt"><span class="tile-k">${I.kids} Картони</span><h3>Спешният телефон е на 1 докосване</h3><p>Родител, диагноза, алергии, предупреждения, медицинско до кога — всичко за детето на едно място.</p></div>
                 <div class="mini-card" aria-hidden="true">
                   <div class="mc-av">АП</div>
                   <div class="mc-lines"><b>Ани Петрова</b><span><i>8 г.</i><i>Ниво 2</i><i class="code">4821 7730</i></span></div>
@@ -453,7 +453,7 @@
               </article>
 
               <article class="tile tile-mobile" data-reveal="up" style="--d:.24s" data-tilt="6">
-                <div class="tile-txt"><span class="tile-k">${I.star} Навсякъде</span><h3>Удобно от ръба на басейна</h3><p>Големи бутони, таб лента като в приложение и бърз запис. Сложи го на началния екран.</p></div>
+                <div class="tile-txt"><span class="tile-k">${I.star} Състезания</span><h3>Времена, места, лични рекорди</h3><p>Записваш резултата от Стара Загора — личният рекорд се отбелязва сам, а родителят получава имейл.</p></div>
                 <div class="mini-tabbar" aria-hidden="true"><i class="on">${I.cal}</i><i>${I.kids}</i><i>${I.trophy}</i><i>${I.team}</i></div>
               </article>
             </div>
@@ -464,8 +464,8 @@
         <section class="sec" id="sec-team">
           <div class="container split">
             <div class="split-txt">
-              ${eyebrow('03', 'За двама треньори')}
-              <h2 class="sec-h" data-reveal="words">${split('Двама треньори.\n*Един* дневник.')}</h2>
+              ${eyebrow('03', 'За целия отбор')}
+              <h2 class="sec-h" data-reveal="words">${split('Няколко треньори.\n*Един* дневник.')}</h2>
               <p class="sec-lead" data-reveal="up">Когато и двамата водите едни и същи деца, всяка бележка е важна. Виждате какво е правил другият и продължавате оттам.</p>
               <ul class="ticks" data-reveal="up" style="--d:.15s">
                 <li><span>${I.check}</span><div><b>Всеки със свой цвят</b>В графика и в историята личи кой е водил тренировката.</div></li>
@@ -496,11 +496,28 @@
             <div class="split-txt">
               ${eyebrow('04', 'За родителите', true)}
               <h2 class="sec-h sec-h-light" data-reveal="words">${split('Родителите виждат\n*усмивката*, не таблицата.')}</h2>
-              <p class="sec-lead light" data-reveal="up">Всяко дете има 8-цифрен код. Родителят го въвежда с датата на раждане и вижда наградите, напредъка и датите на тренировките. Без регистрация и без пароли.</p>
+              <p class="sec-lead light" data-reveal="up">Всяко дете има 8-цифрен код. Родителят го въвежда с датата на раждане и вижда нивото, уменията, наградите, бележките ти и следващите тренировки. Без регистрация. По желание получава имейл при всяка награда.</p>
               <div class="parent-grid" data-reveal="up" style="--d:.15s">
-                <div><span>${I.eye}</span><b>Виждат</b><p>Постижения, карти за напредък, цели и история на посещенията.</p></div>
+                <div><span>${I.eye}</span><b>Виждат</b><p>Ниво и точки, умения, награди, състезания, бележки за тях и посещенията.</p></div>
                 <div><span>${I.lock}</span><b>Не виждат</b><p>Здравните данни, вътрешните ви бележки и другите деца.</p></div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== СОП ===================== -->
+        <section class="sec" id="sec-sop">
+          <div class="container sop">
+            <div class="sop-txt">
+              ${eyebrow('★', 'За всяко дете')}
+              <h2 class="sec-h" data-reveal="words">${split('Направено и за деца\n*със* *СОП.*')}</h2>
+              <p class="sec-lead" data-reveal="up">Децата със специални образователни потребности имат нужда от постоянство, търпение и малки победи. SwimWithSmile помага да не изпуснеш нито едно от трите.</p>
+            </div>
+            <div class="sop-cards" data-reveal="up" style="--d:.1s">
+              <div><span>🚩</span><b>Сигнал при пропуски</b><p>Две поредни отсъствия — и виждаш червен флаг в „Днес“. Обаждаш се навреме.</p></div>
+              <div><span>⚠️</span><b>Предупреждение навсякъде</b><p>Епилепсия, алергия, страх от вода — вижда се до името на детето на всяка тренировка.</p></div>
+              <div><span>🫧</span><b>Малки стъпки = победи</b><p>„Издишва под водата“ е умение с точки. Детето вижда, че расте.</p></div>
+              <div><span>📞</span><b>Спешен телефон</b><p>Родителят е на едно докосване от картона — без търсене в тетрадки.</p></div>
             </div>
           </div>
         </section>
@@ -549,6 +566,9 @@
                 ['Работи ли на телефон?', 'Да. Сайтът е направен първо за телефон: таб лента долу, големи бутони и формуляри, които се отварят отдолу като в приложение. Можеш да го добавиш на началния екран.'],
                 ['Мога ли да сменя или откажа плана?', 'По всяко време от страница „Отбор“. Ако треньорите в отбора станат повече, отколкото позволява по-малкият план, първо премахваш някого.'],
                 ['Какво става, ако пропусна да попълня тренировка?', 'Нищо страшно. Можеш да попълниш по-късно, дори за минали дни. Всяко дете пази цялата си история.'],
+                ['Как се свързва с Google Calendar?', 'От „График → Google Calendar“ натискаш „Добави“. Всички тренировки (или само твоите) се появяват в календара ти и се обновяват сами.'],
+                ['Подходящо ли е за деца със СОП?', 'Да — направено е от треньори, които работят с такива деца. Има отделно поле за специални потребности, червено предупреждение, което се вижда на всяка тренировка, и сигнал при пропуснати тренировки.'],
+                ['А личните данни (GDPR)?', 'Данните са само в твоя отбор. Родителите не виждат здравна информация. В картона отбелязваш датата, на която родителят е дал съгласие.'],
               ].map(([q, a], i) => `
                 <div class="qa">
                   <button type="button" class="qa-q" aria-expanded="false" aria-controls="qa${i}"><span>${q}</span><i class="qa-ico"></i></button>
@@ -707,6 +727,7 @@
           <div class="field"><label for="p_code">Код от треньора</label>
             <input class="input input-code" id="p_code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="• • • • • • • •" required></div>
           <div class="field"><label for="p_birth">Дата на раждане на детето</label><input class="input" id="p_birth" name="birth" type="date" required></div>
+          <label class="switch"><input type="checkbox" id="p_rem" checked><span></span>Запомни ме на това устройство</label>
           <button class="btn btn-sky btn-block btn-lg" type="submit">Виж детето ${I.arrowR}</button>
           <p class="auth-alt">Кодът е в картона на детето. Поискай го от треньора.</p>
         </form>`
@@ -722,6 +743,8 @@
       (coach ? $('#f_email') : $('#p_code')).focus({ preventScroll: true });
     });
     $('#p_code').oninput = (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8); };
+    const rem = S.parentRemembered && S.parentRemembered();
+    if (rem) { $('#p_code').value = rem.code; $('#p_birth').value = rem.birth; }
 
     $('#coachForm').onsubmit = async (e) => {
       e.preventDefault();
@@ -730,7 +753,7 @@
       busy(btn, true, 'Влизане…');
       try {
         const r = await API.login(f.email.value.trim(), f.password.value);
-        toast(`Здравей, ${(r.fullName || '').split(' ')[0] || 'треньоре'}!`, 'ok'); navigate('/app/calendar');
+        toast(`Здравей, ${(r.fullName || '').split(' ')[0] || 'треньоре'}!`, 'ok'); navigate('/app/today');
       } catch (ex) { err(ex); busy(btn, false); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
     };
     $('#parentForm').onsubmit = async (e) => {
@@ -738,11 +761,8 @@
       const f = e.target, btn = f.querySelector('[type=submit]');
       if (f.code.value.length !== 8 || !f.birth.value) return toast('Въведи 8-цифрения код и датата', 'err');
       busy(btn, true, 'Търсене…');
-      try {
-        const data = await API.parentDashboard(f.code.value.trim(), f.birth.value);
-        sessionStorage.setItem('sws.parent', JSON.stringify(data));
-        navigate('/parent/view');
-      } catch (ex) { err(ex); busy(btn, false); }
+      try { await S.parentLogin(f.code.value.trim(), f.birth.value, $('#p_rem').checked); }
+      catch (ex) { err(ex); busy(btn, false); }
     };
   });
 
@@ -870,7 +890,7 @@
         <p class="auth-lead">Покани колегата си с този линк. Може и по-късно от страница „Отбор“.</p>
         ${r.plan === 'solo' ? `<p class="note">${I.lock} В план „Соло“ има място за 1 треньор. За колега избери „Отбор“ от страница „Отбор“.</p>` : ''}
         <div class="invite-box"><input class="input" readonly value="${esc(link)}" id="invLink"><button class="btn btn-soft" id="copyInv" type="button">${I.copy} Копирай</button></div>
-        <a class="btn btn-primary btn-lg btn-block" href="#/app/calendar">Към графика ${I.arrowR}</a>
+        <a class="btn btn-primary btn-lg btn-block" href="#/app/today">Към графика ${I.arrowR}</a>
       </div>`;
     $$('.stp').forEach(s => { s.classList.add('done'); s.classList.remove('cur'); $('span', s).innerHTML = I.check; });
     $('#copyInv').onclick = () => copyText(link);
@@ -921,7 +941,7 @@
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)) return fieldErr('email', 'Провери имейла');
       if (dto.password.length < 8) return fieldErr('password', 'Поне 8 символа');
       busy(btn, true, 'Присъединяване…');
-      try { await API.joinTeam(dto); toast(`Добре дошъл в „${info.teamName}“!`, 'ok'); navigate('/app/calendar'); }
+      try { await API.joinTeam(dto); toast(`Добре дошъл в „${info.teamName}“!`, 'ok'); navigate('/app/today'); }
       catch (ex) { busy(btn, false); err(ex); }
     };
   });
