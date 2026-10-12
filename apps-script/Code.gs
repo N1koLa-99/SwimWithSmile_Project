@@ -16,20 +16,38 @@
 
 var TZ = 'Europe/Sofia';
 
+// Новите колони (teamId, role) са добавени НАКРАЯ, за да не се разместят
+// съществуващите данни. ensureSchema_() ги добавя автоматично.
 var SCHEMA = {
-  Coaches:      ['id','fullName','email','passwordHash','active','createdAt'],
+  Teams:        ['id','name','plan','inviteCode','ownerId','createdAt'],
+  Coaches:      ['id','fullName','email','passwordHash','active','createdAt','teamId','role'],
   Children:     ['id','firstName','lastName','birthDate','gender','level','trainingStartDate',
                  'diagnosis','objectiveCondition','allergiesMedical','parentContact','emergencyContact',
-                 'goals','notes','parentCode','photoUrl','isActive','createdAt'],
-  Sessions:     ['id','sessionDate','startTime','coachId','location','notes','createdAt'],
+                 'goals','notes','parentCode','photoUrl','isActive','createdAt','teamId'],
+  Sessions:     ['id','sessionDate','startTime','coachId','location','notes','createdAt','teamId'],
   Participants: ['id','sessionId','childId','attended','swamWhat','dailyProgress','mood','updatedAt'],
   Progress:     ['id','childId','coachId','assessmentDate','periodLabel','jumpsAthletics','balanceCoordination',
                  'strengthEndurance','basicSkillsComment','physStrength','physFlexibility','physEndurance',
                  'physCoordination','teamwork','discipline','motivation','concentration','nextGoals','coachNotes','createdAt'],
-  Achievements: ['id','name','icon','category','reward','isActive','createdAt'],
+  Achievements: ['id','name','icon','category','reward','isActive','createdAt','teamId'],
   Awards:       ['id','childId','achievementId','awardedDate','awardedBy','note','createdAt'],
   Competitions: ['id','childId','eventDate','eventName','results','notes','createdBy','createdAt']
 };
+
+// Планове: брой треньори и деца в един отбор. Плащанията още не са
+// свързани — планът се сменя от страница „Отбор" в приложението.
+var PLANS = {
+  solo: { name: 'Соло',  seats: 1,  kids: 15 },
+  team: { name: 'Отбор', seats: 3,  kids: 60 },
+  club: { name: 'Клуб',  seats: 10, kids: 300 }
+};
+var SCHEMA_VERSION = '2';
+
+var DEFAULT_ACHIEVEMENTS = [
+  ['Първи 25 метра','🏊','Техника','стикер'],
+  ['Скок от стартов блок','🚀','Смелост','медал'],
+  ['Пълна тренировка без спиране','🔥','Издръжливост','тениска']
+];
 
 /* ---------------- Меню в таблицата ---------------- */
 function onOpen() {
@@ -42,41 +60,108 @@ function onOpen() {
 
 /* ---------------- Първоначална настройка ---------------- */
 function setup() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  Object.keys(SCHEMA).forEach(function (name) {
-    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
-    var headers = SCHEMA[name];
-    // Форматираме всичко като текст, за да не превръща Sheets датите/числата
-    sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    sh.setFrozenRows(1);
-  });
-
   // Гарантираме „pepper" (таен ключ) за подписване на токени и хеширане
   pepper_();
+  ensureSchema_(true);
 
   // Демо треньор (смени го!) — паролата е в чист вид, докато не я хешираш
   if (readObjects_('Coaches').length === 0) {
+    var teamId = createTeam_('SwimWithSmile', 'club', null);
+    var coachId = Utilities.getUuid();
     appendObject_('Coaches', {
-      id: Utilities.getUuid(), fullName: 'Треньор', email: 'coach@example.com',
-      passwordHash: 'promeni-me', active: 'TRUE', createdAt: nowIso_()
+      id: coachId, fullName: 'Треньор', email: 'coach@example.com',
+      passwordHash: 'promeni-me', active: 'TRUE', createdAt: nowIso_(), teamId: teamId, role: 'owner'
     });
-  }
-
-  // Няколко примерни постижения, за да работи „Дай постижение" веднага
-  if (readObjects_('Achievements').length === 0) {
-    [['Първи 25 метра','🏊','Техника','стикер'],
-     ['Скок от стартов блок','🚀','Смелост','медал'],
-     ['Пълна тренировка без спиране','🔥','Издръжливост','тениска']
-    ].forEach(function (a) {
-      appendObject_('Achievements', {
-        id: Utilities.getUuid(), name: a[0], icon: a[1], category: a[2], reward: a[3],
-        isActive: 'TRUE', createdAt: nowIso_()
-      });
-    });
+    updateById_('Teams', teamId, { ownerId: coachId });
+    PropertiesService.getScriptProperties().setProperty('LEGACY_TEAM_ID', teamId);
   }
 
   SpreadsheetApp.getUi().alert('Готово! Табовете са създадени.\n\nСега: в таб „Coaches" сложи своя имейл и парола, после пусни „2) Хеширай паролите".');
+}
+
+/* ------------------------------------------------------------
+   Схема + миграция към отбори (безопасна, изпълнява се веднъж).
+   Добавя липсващите колони НАКРАЯ на всеки таб и прехвърля
+   старите данни (без teamId) в един отбор „SwimWithSmile".
+   ------------------------------------------------------------ */
+function ensureSchema_(force) {
+  var props = PropertiesService.getScriptProperties();
+  if (!force && props.getProperty('SCHEMA_V') === SCHEMA_VERSION) return;
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (!force && props.getProperty('SCHEMA_V') === SCHEMA_VERSION) return;
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    Object.keys(SCHEMA).forEach(function (name) {
+      var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+      var want = SCHEMA[name];
+      var have = sh.getLastColumn() > 0
+        ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String).filter(function (h) { return h; })
+        : [];
+      var headers = have.slice();
+      want.forEach(function (h) { if (headers.indexOf(h) < 0) headers.push(h); });
+      if (sh.getMaxColumns() < headers.length) sh.insertColumnsAfter(sh.getMaxColumns(), headers.length - sh.getMaxColumns());
+      // Всичко като текст, за да не превръща Sheets датите/числата
+      sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');
+      sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+      sh.setFrozenRows(1);
+    });
+
+    // Миграция: съществуващите треньори и данни → един общ отбор
+    var coaches = readObjects_('Coaches');
+    var orphans = coaches.filter(function (c) { return !c.teamId; });
+    if (orphans.length) {
+      var legacy = props.getProperty('LEGACY_TEAM_ID');
+      if (!legacy || !findById_('Teams', legacy)) {
+        legacy = createTeam_('SwimWithSmile', 'club', orphans[0].id);
+        props.setProperty('LEGACY_TEAM_ID', legacy);
+      }
+      orphans.forEach(function (c, i) {
+        updateById_('Coaches', c.id, { teamId: legacy, role: (c.role || (i === 0 ? 'owner' : 'coach')) });
+      });
+      ['Children', 'Sessions', 'Achievements'].forEach(function (name) {
+        fillEmptyColumn_(name, 'teamId', legacy);
+      });
+    }
+    props.setProperty('SCHEMA_V', SCHEMA_VERSION);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Попълва празните клетки в колона с дадена стойност (една операция за целия таб)
+function fillEmptyColumn_(name, col, value) {
+  var sh = sh_(name);
+  if (sh.getLastRow() < 2) return;
+  var headers = headers_(name);
+  var c = headers.indexOf(col);
+  if (c < 0) return;
+  var rng = sh.getRange(2, c + 1, sh.getLastRow() - 1, 1);
+  var vals = rng.getValues();
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues(); // колона id — пропускаме празните редове
+  for (var i = 0; i < vals.length; i++) {
+    if (rows[i][0] !== '' && (vals[i][0] === '' || vals[i][0] === null)) vals[i][0] = value;
+  }
+  rng.setNumberFormat('@').setValues(vals);
+}
+
+function createTeam_(name, plan, ownerId) {
+  var id = Utilities.getUuid();
+  appendObject_('Teams', {
+    id: id, name: name, plan: PLANS[plan] ? plan : 'solo',
+    inviteCode: newInviteCode_(), ownerId: ownerId || '', createdAt: nowIso_()
+  });
+  return id;
+}
+
+function seedAchievements_(teamId) {
+  DEFAULT_ACHIEVEMENTS.forEach(function (a) {
+    appendObject_('Achievements', {
+      id: Utilities.getUuid(), name: a[0], icon: a[1], category: a[2], reward: a[3],
+      isActive: 'TRUE', createdAt: nowIso_(), teamId: teamId
+    });
+  });
 }
 
 function hashPlainPasswords() {
@@ -125,19 +210,26 @@ function D(data) { return { ok: true, data: (data === undefined ? null : data) }
 function E(status, message) { return { ok: false, status: status, message: message }; }
 
 /* ---------------- Рутер ---------------- */
-var PUBLIC_ACTIONS = { login: 1, parentDashboard: 1 };
-var WRITE_RE = /^(create|update|delete|regenerate|upsert|remove|award)/;
+var PUBLIC_ACTIONS = { login: 1, parentDashboard: 1, register: 1, inviteInfo: 1, joinTeam: 1 };
+var WRITE_RE = /^(create|update|delete|regenerate|upsert|remove|award|register|join|setPlan)/;
+
+// Всяка грешка за достъп хвърля Denied_ → връща се като 404/403, а не 500
+function Denied_(status, message) { this.status = status; this.message = message; }
 
 function handle_(req) {
   var action = req.action;
   var p = req.payload || {};
 
-  var coachId = null;
+  ensureSchema_(false);
+
   if (!PUBLIC_ACTIONS[action]) {
-    coachId = verifyToken_(req.token);
-    if (!coachId) return E(401, 'Сесията изтече. Влез отново.');
+    var coachId = verifyToken_(req.token);
+    var coach = coachId ? findById_('Coaches', coachId) : null;
+    if (!coach || !nb_(coach.active) || !coach.teamId) return E(401, 'Сесията изтече. Влез отново.');
+    p._coachId = coach.id;
+    p._teamId = String(coach.teamId);
+    p._role = coach.role || 'coach';
   }
-  p._coachId = coachId;
 
   var isWrite = WRITE_RE.test(action);
   var lock = null;
@@ -148,11 +240,18 @@ function handle_(req) {
   try {
     switch (action) {
       case 'login':                return actLogin_(p);
+      case 'register':             return actRegister_(p);
+      case 'inviteInfo':           return actInviteInfo_(p);
+      case 'joinTeam':             return actJoinTeam_(p);
+      case 'team':                 return actTeam_(p);
+      case 'updateTeam':           return actUpdateTeam_(p);
+      case 'setPlan':              return actSetPlan_(p);
+      case 'regenerateInvite':     return actRegenerateInvite_(p);
+      case 'removeCoach':          return actRemoveCoach_(p);
       case 'coaches':              return actCoaches_(p);
-      case 'createCoach':          return actCreateCoach_(p);
 
       case 'children':             return actChildren_(p);
-      case 'child':                return D(childOut_(mustChild_(p.id)));
+      case 'child':                return D(childOut_(mustChild_(p.id, p._teamId)));
       case 'createChild':          return actCreateChild_(p);
       case 'updateChild':          return actUpdateChild_(p);
       case 'regenerateCode':       return actRegenerateCode_(p);
@@ -172,23 +271,26 @@ function handle_(req) {
       case 'removeParticipant':    return actRemoveParticipant_(p);
 
       case 'createProgress':       return actCreateProgress_(p);
-      case 'deleteProgress':       return actDeleteById_('Progress', p.id);
+      case 'deleteProgress':       return actDeleteChildRow_('Progress', p.id, p._teamId);
 
       case 'achievements':         return actAchievements_(p);
       case 'createAchievement':    return actCreateAchievement_(p);
       case 'updateAchievement':    return actUpdateAchievement_(p);
       case 'deleteAchievement':    return actDeleteAchievement_(p);
       case 'award':                return actAward_(p);
-      case 'removeAward':          return actDeleteById_('Awards', p.id);
+      case 'removeAward':          return actDeleteChildRow_('Awards', p.id, p._teamId);
 
       case 'createCompetition':    return actCreateCompetition_(p);
       case 'updateCompetition':    return actUpdateCompetition_(p);
-      case 'deleteCompetition':    return actDeleteById_('Competitions', p.id);
+      case 'deleteCompetition':    return actDeleteChildRow_('Competitions', p.id, p._teamId);
 
       case 'parentDashboard':      return actParentDashboard_(p);
 
       default:                     return E(400, 'Непозната операция: ' + action);
     }
+  } catch (err) {
+    if (err instanceof Denied_) return E(err.status, err.message);
+    throw err;
   } finally {
     if (lock) lock.releaseLock();
   }
@@ -209,29 +311,149 @@ function actLogin_(p) {
   var okpw = stored.indexOf('sha256:') === 0 ? (stored === hashPw_(password)) : (stored === password);
   if (!okpw) return E(401, 'Грешен имейл или парола.');
 
-  return D({ token: makeToken_(c.id), coachId: c.id, fullName: c.fullName, email: c.email });
+  return D(sessionOut_(c));
 }
 
-function actCoaches_() {
-  return D(readObjects_('Coaches').filter(function (c) { return nb_(c.active); })
-    .map(function (c) { return { id: c.id, fullName: c.fullName, email: c.email }; }));
+// Отговор след вход/регистрация: токен + кой е треньорът и в кой отбор е
+function sessionOut_(c) {
+  var t = findById_('Teams', c.teamId) || {};
+  return { token: makeToken_(c.id), coachId: c.id, fullName: c.fullName, email: c.email,
+           teamId: c.teamId || null, teamName: t.name || '', role: c.role || 'coach', plan: t.plan || 'solo' };
 }
 
-function actCreateCoach_(p) {
+function validateNewCoach_(d) {
+  var email = String(d.email || '').trim().toLowerCase();
+  var name = String(d.fullName || '').trim();
+  var pw = String(d.password || '');
+  if (name.length < 2) return 'Въведи име и фамилия.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Невалиден имейл.';
+  if (pw.length < 8) return 'Паролата трябва да е поне 8 символа.';
+  var taken = readObjects_('Coaches').some(function (c) { return String(c.email || '').trim().toLowerCase() === email; });
+  if (taken) return 'Вече има профил с този имейл. Влез в него.';
+  return null;
+}
+
+function actRegister_(p) {
   var d = p.data || {};
-  var id = Utilities.getUuid();
-  appendObject_('Coaches', {
-    id: id, fullName: d.fullName || '', email: String(d.email || '').trim(),
-    passwordHash: d.password ? hashPw_(String(d.password)) : '', active: 'TRUE', createdAt: nowIso_()
+  var teamName = String(d.teamName || '').trim();
+  if (teamName.length < 2) return E(400, 'Въведи име на отбора.');
+  var bad = validateNewCoach_(d);
+  if (bad) return E(400, bad);
+
+  var plan = PLANS[d.plan] ? d.plan : 'solo';
+  var coachId = Utilities.getUuid();
+  var teamId = createTeam_(teamName.slice(0, 60), plan, coachId);
+  var coach = {
+    id: coachId, fullName: String(d.fullName).trim().slice(0, 80), email: String(d.email).trim().toLowerCase(),
+    passwordHash: hashPw_(String(d.password)), active: 'TRUE', createdAt: nowIso_(), teamId: teamId, role: 'owner'
+  };
+  appendObject_('Coaches', coach);
+  seedAchievements_(teamId);
+  var out = sessionOut_(coach);
+  out.inviteCode = findById_('Teams', teamId).inviteCode;
+  return D(out);
+}
+
+function teamByInvite_(code) {
+  code = String(code || '').trim().toUpperCase();
+  if (!code) return null;
+  return readObjects_('Teams').filter(function (t) { return String(t.inviteCode || '').toUpperCase() === code; })[0] || null;
+}
+
+function activeCoaches_(teamId) {
+  return readObjects_('Coaches').filter(function (c) { return nb_(c.active) && String(c.teamId) === String(teamId); });
+}
+
+function actInviteInfo_(p) {
+  var t = teamByInvite_(p.code);
+  if (!t) return E(404, 'Поканата е невалидна или е сменена.');
+  var owner = findById_('Coaches', t.ownerId) || {};
+  var plan = PLANS[t.plan] || PLANS.solo;
+  var used = activeCoaches_(t.id).length;
+  return D({ teamName: t.name, ownerName: owner.fullName || '', seatsLeft: Math.max(0, plan.seats - used) });
+}
+
+function actJoinTeam_(p) {
+  var d = p.data || {};
+  var t = teamByInvite_(d.code);
+  if (!t) return E(404, 'Поканата е невалидна или е сменена.');
+  var plan = PLANS[t.plan] || PLANS.solo;
+  if (activeCoaches_(t.id).length >= plan.seats)
+    return E(403, 'Отборът е пълен за плана „' + plan.name + '". Помоли собственика да смени плана.');
+  var bad = validateNewCoach_(d);
+  if (bad) return E(400, bad);
+
+  var coach = {
+    id: Utilities.getUuid(), fullName: String(d.fullName).trim().slice(0, 80), email: String(d.email).trim().toLowerCase(),
+    passwordHash: hashPw_(String(d.password)), active: 'TRUE', createdAt: nowIso_(), teamId: t.id, role: 'coach'
+  };
+  appendObject_('Coaches', coach);
+  return D(sessionOut_(coach));
+}
+
+function actTeam_(p) {
+  var t = findById_('Teams', p._teamId);
+  if (!t) return E(404, 'Отборът не е намерен.');
+  var plan = PLANS[t.plan] || PLANS.solo;
+  var members = activeCoaches_(t.id).map(function (c) {
+    return { id: c.id, fullName: c.fullName, email: c.email, role: c.role || 'coach', createdAt: nn_(c.createdAt) };
   });
-  return D({ id: id });
+  var kids = readObjects_('Children').filter(function (c) { return String(c.teamId) === String(t.id) && nb_(c.isActive); }).length;
+  return D({
+    id: t.id, name: t.name, plan: t.plan || 'solo', planName: plan.name, seats: plan.seats, kidsLimit: plan.kids,
+    kids: kids, members: members, isOwner: p._role === 'owner',
+    inviteCode: p._role === 'owner' ? t.inviteCode : null, plans: PLANS
+  });
+}
+
+function mustOwner_(p) {
+  if (p._role !== 'owner') throw new Denied_(403, 'Само собственикът на отбора може да прави това.');
+}
+
+function actUpdateTeam_(p) {
+  mustOwner_(p);
+  var name = String((p.data || {}).name || '').trim();
+  if (name.length < 2) return E(400, 'Въведи име на отбора.');
+  updateById_('Teams', p._teamId, { name: name.slice(0, 60) });
+  return D(null);
+}
+
+function actSetPlan_(p) {
+  mustOwner_(p);
+  var plan = PLANS[p.plan];
+  if (!plan) return E(400, 'Непознат план.');
+  if (activeCoaches_(p._teamId).length > plan.seats)
+    return E(400, 'В отбора има повече треньори, отколкото позволява „' + plan.name + '". Първо премахни някого.');
+  updateById_('Teams', p._teamId, { plan: p.plan });
+  return D(null);
+}
+
+function actRegenerateInvite_(p) {
+  mustOwner_(p);
+  var code = newInviteCode_();
+  updateById_('Teams', p._teamId, { inviteCode: code });
+  return D({ inviteCode: code });
+}
+
+function actRemoveCoach_(p) {
+  mustOwner_(p);
+  if (String(p.id) === String(p._coachId)) return E(400, 'Не можеш да премахнеш себе си.');
+  var c = findById_('Coaches', p.id);
+  if (!c || String(c.teamId) !== p._teamId) return E(404, 'Треньорът не е намерен.');
+  updateById_('Coaches', c.id, { active: 'FALSE' });
+  return D(null);
+}
+
+function actCoaches_(p) {
+  return D(activeCoaches_(p._teamId)
+    .map(function (c) { return { id: c.id, fullName: c.fullName, email: c.email }; }));
 }
 
 /* ============================================================
    Действия — Деца
    ============================================================ */
 function actChildren_(p) {
-  var list = readObjects_('Children');
+  var list = inTeam_(readObjects_('Children'), p._teamId);
   if (!p.includeInactive) list = list.filter(function (c) { return nb_(c.isActive); });
   list.sort(function (a, b) {
     return ((a.firstName || '') + (a.lastName || '')).localeCompare((b.firstName || '') + (b.lastName || ''), 'bg');
@@ -241,6 +463,10 @@ function actChildren_(p) {
 
 function actCreateChild_(p) {
   var d = p.data || {};
+  var t = findById_('Teams', p._teamId) || {};
+  var plan = PLANS[t.plan] || PLANS.solo;
+  var count = inTeam_(readObjects_('Children'), p._teamId).filter(function (c) { return nb_(c.isActive); }).length;
+  if (count >= plan.kids) return E(403, 'Достигнат е лимитът от ' + plan.kids + ' деца за плана „' + plan.name + '".');
   var id = Utilities.getUuid();
   var code = newParentCode_();
   appendObject_('Children', {
@@ -250,12 +476,13 @@ function actCreateChild_(p) {
     diagnosis: d.diagnosis || '', objectiveCondition: d.objectiveCondition || '',
     allergiesMedical: d.allergiesMedical || '', parentContact: d.parentContact || '',
     emergencyContact: d.emergencyContact || '', goals: d.goals || '', notes: d.notes || '',
-    parentCode: code, photoUrl: d.photoUrl || '', isActive: 'TRUE', createdAt: nowIso_()
+    parentCode: code, photoUrl: d.photoUrl || '', isActive: 'TRUE', createdAt: nowIso_(), teamId: p._teamId
   });
   return D({ id: id, parentCode: code });
 }
 
 function actUpdateChild_(p) {
+  mustChild_(p.id, p._teamId);
   var d = p.data || {};
   var patch = {};
   ['firstName','lastName','gender','level','diagnosis','objectiveCondition','allergiesMedical',
@@ -270,12 +497,14 @@ function actUpdateChild_(p) {
 }
 
 function actRegenerateCode_(p) {
+  mustChild_(p.id, p._teamId);
   var code = newParentCode_();
   if (!updateById_('Children', p.id, { parentCode: code })) return E(404, 'Детето не е намерено.');
   return D({ parentCode: code });
 }
 
 function actChildHistory_(p) {
+  mustChild_(p.id, p._teamId);
   var sessions = mapById_('Sessions');
   var coaches = coachMap_();
   var out = readObjects_('Participants')
@@ -298,6 +527,7 @@ function actChildHistory_(p) {
 }
 
 function actChildProgress_(p) {
+  mustChild_(p.id, p._teamId);
   var out = readObjects_('Progress')
     .filter(function (r) { return String(r.childId) === String(p.id); })
     .map(progressOut_);
@@ -309,6 +539,7 @@ function actChildProgress_(p) {
 }
 
 function actChildAchievements_(p) {
+  mustChild_(p.id, p._teamId);
   var ach = mapById_('Achievements');
   var out = readObjects_('Awards')
     .filter(function (a) { return String(a.childId) === String(p.id); })
@@ -321,6 +552,7 @@ function actChildAchievements_(p) {
 }
 
 function actChildCompetitions_(p) {
+  mustChild_(p.id, p._teamId);
   var out = readObjects_('Competitions')
     .filter(function (k) { return String(k.childId) === String(p.id); })
     .map(function (k) {
@@ -342,7 +574,7 @@ function actSessions_(p) {
   readObjects_('Participants').forEach(function (pt) {
     countBy[pt.sessionId] = (countBy[pt.sessionId] || 0) + 1;
   });
-  var out = readObjects_('Sessions')
+  var out = inTeam_(readObjects_('Sessions'), p._teamId)
     .filter(function (s) { return nd_(s.sessionDate).slice(0, 7) === prefix; })
     .map(function (s) {
       return {
@@ -355,8 +587,7 @@ function actSessions_(p) {
 }
 
 function actSession_(p) {
-  var s = findById_('Sessions', p.id);
-  if (!s) return E(404, 'Тренировката не е намерена.');
+  var s = mustSession_(p.id, p._teamId);
   var coaches = coachMap_();
   var children = childMap_();
   var participants = readObjects_('Participants')
@@ -381,17 +612,19 @@ function actCreateSession_(p) {
   var id = Utilities.getUuid();
   appendObject_('Sessions', {
     id: id, sessionDate: nd_(d.sessionDate), startTime: nt_(d.startTime),
-    coachId: d.coachId || '', location: d.location || '', notes: d.notes || '', createdAt: nowIso_()
+    coachId: teamCoachOr_(d.coachId, p), location: d.location || '', notes: d.notes || '',
+    createdAt: nowIso_(), teamId: p._teamId
   });
   return D({ id: id });
 }
 
 function actUpdateSession_(p) {
+  mustSession_(p.id, p._teamId);
   var d = p.data || {};
   var patch = {};
   if (d.sessionDate !== undefined) patch.sessionDate = nd_(d.sessionDate);
   if (d.startTime !== undefined) patch.startTime = nt_(d.startTime);
-  if (d.coachId !== undefined) patch.coachId = d.coachId || '';
+  if (d.coachId !== undefined) patch.coachId = teamCoachOr_(d.coachId, p);
   if (d.location !== undefined) patch.location = d.location || '';
   if (d.notes !== undefined) patch.notes = d.notes || '';
   if (!updateById_('Sessions', p.id, patch)) return E(404, 'Тренировката не е намерена.');
@@ -399,6 +632,7 @@ function actUpdateSession_(p) {
 }
 
 function actDeleteSession_(p) {
+  mustSession_(p.id, p._teamId);
   // Изтриваме и участниците към тренировката
   readObjects_('Participants')
     .filter(function (pt) { return String(pt.sessionId) === String(p.id); })
@@ -410,6 +644,8 @@ function actDeleteSession_(p) {
 function actUpsertParticipant_(p) {
   var sid = p.sessionId;
   var d = p.data || {};
+  mustSession_(sid, p._teamId);
+  mustChild_(d.childId, p._teamId);
   var existing = readObjects_('Participants').filter(function (pt) {
     return String(pt.sessionId) === String(sid) && String(pt.childId) === String(d.childId);
   })[0];
@@ -428,6 +664,7 @@ function actUpsertParticipant_(p) {
 }
 
 function actRemoveParticipant_(p) {
+  mustSession_(p.sessionId, p._teamId);
   readObjects_('Participants')
     .filter(function (pt) { return String(pt.sessionId) === String(p.sessionId) && String(pt.childId) === String(p.childId); })
     .forEach(function (pt) { deleteById_('Participants', pt.id); });
@@ -438,6 +675,9 @@ function actRemoveParticipant_(p) {
    Действие — Събития от Google Calendar (само четене)
    ============================================================ */
 function actCalendarEvents_(p) {
+  // Календарът е личният Google календар на собственика на скрипта —
+  // показва се САМО на първоначалния отбор, никога на нови отбори.
+  if (p._teamId !== PropertiesService.getScriptProperties().getProperty('LEGACY_TEAM_ID')) return D([]);
   var y = Number(p.year), m = Number(p.month);        // month 1-12
   var start = new Date(y, m - 1, 1, 0, 0, 0);
   var end = new Date(y, m, 1, 0, 0, 0);               // 1-во число на следващия месец
@@ -470,9 +710,10 @@ function actCalendarEvents_(p) {
    ============================================================ */
 function actCreateProgress_(p) {
   var d = p.data || {};
+  mustChild_(d.childId, p._teamId);
   var id = Utilities.getUuid();
   appendObject_('Progress', {
-    id: id, childId: d.childId || '', coachId: d.coachId || '',
+    id: id, childId: d.childId || '', coachId: p._coachId,
     assessmentDate: nd_(d.assessmentDate), periodLabel: d.periodLabel || '',
     jumpsAthletics: numStr_(d.jumpsAthletics), balanceCoordination: numStr_(d.balanceCoordination),
     strengthEndurance: numStr_(d.strengthEndurance), basicSkillsComment: d.basicSkillsComment || '',
@@ -489,7 +730,7 @@ function actCreateProgress_(p) {
    Действия — Постижения
    ============================================================ */
 function actAchievements_(p) {
-  var list = readObjects_('Achievements');
+  var list = inTeam_(readObjects_('Achievements'), p._teamId);
   if (!p.includeInactive) list = list.filter(function (a) { return nb_(a.isActive); });
   return D(list.map(function (a) {
     return { id: a.id, name: a.name || '', icon: a.icon || '🏅', category: nn_(a.category),
@@ -502,12 +743,13 @@ function actCreateAchievement_(p) {
   var id = Utilities.getUuid();
   appendObject_('Achievements', {
     id: id, name: d.name || '', icon: d.icon || '🏅', category: d.category || '',
-    reward: d.reward || '', isActive: 'TRUE', createdAt: nowIso_()
+    reward: d.reward || '', isActive: 'TRUE', createdAt: nowIso_(), teamId: p._teamId
   });
   return D({ id: id });
 }
 
 function actUpdateAchievement_(p) {
+  mustInTeam_('Achievements', p.id, p._teamId, 'Постижението не е намерено.');
   var d = p.data || {};
   var patch = {};
   ['name','icon','category','reward'].forEach(function (k) { if (d[k] !== undefined) patch[k] = d[k] === null ? '' : d[k]; });
@@ -517,6 +759,7 @@ function actUpdateAchievement_(p) {
 }
 
 function actDeleteAchievement_(p) {
+  mustInTeam_('Achievements', p.id, p._teamId, 'Постижението не е намерено.');
   // Махаме и раздадените награди с това постижение
   readObjects_('Awards')
     .filter(function (a) { return String(a.achievementId) === String(p.id); })
@@ -527,10 +770,12 @@ function actDeleteAchievement_(p) {
 
 function actAward_(p) {
   var d = p.data || {};
+  mustChild_(d.childId, p._teamId);
+  mustInTeam_('Achievements', d.achievementId, p._teamId, 'Постижението не е намерено.');
   var id = Utilities.getUuid();
   appendObject_('Awards', {
     id: id, childId: d.childId || '', achievementId: d.achievementId || '',
-    awardedDate: nd_(d.awardedDate), awardedBy: d.awardedBy || '', note: d.note || '', createdAt: nowIso_()
+    awardedDate: nd_(d.awardedDate), awardedBy: p._coachId, note: d.note || '', createdAt: nowIso_()
   });
   return D({ id: id });
 }
@@ -540,15 +785,17 @@ function actAward_(p) {
    ============================================================ */
 function actCreateCompetition_(p) {
   var d = p.data || {};
+  mustChild_(d.childId, p._teamId);
   var id = Utilities.getUuid();
   appendObject_('Competitions', {
     id: id, childId: d.childId || '', eventDate: nd_(d.eventDate), eventName: d.eventName || '',
-    results: d.results || '', notes: d.notes || '', createdBy: d.createdBy || '', createdAt: nowIso_()
+    results: d.results || '', notes: d.notes || '', createdBy: p._coachId, createdAt: nowIso_()
   });
   return D({ id: id });
 }
 
 function actUpdateCompetition_(p) {
+  mustChildRow_('Competitions', p.id, p._teamId);
   var d = p.data || {};
   var patch = {};
   ['eventName','results','notes'].forEach(function (k) { if (d[k] !== undefined) patch[k] = d[k] === null ? '' : d[k]; });
@@ -721,10 +968,36 @@ function mapById_(name) {
 function coachMap_() { return mapById_('Coaches'); }
 function childMap_() { return mapById_('Children'); }
 
-function mustChild_(id) {
-  var c = findById_('Children', id);
-  if (!c) throw new Error('Детето не е намерено.');
-  return c;
+function inTeam_(list, teamId) {
+  return list.filter(function (o) { return String(o.teamId) === String(teamId); });
+}
+
+// Връща реда, само ако принадлежи на отбора — иначе „не е намерен"
+function mustInTeam_(name, id, teamId, msg) {
+  var o = findById_(name, id);
+  if (!o || String(o.teamId) !== String(teamId)) throw new Denied_(404, msg);
+  return o;
+}
+function mustChild_(id, teamId) { return mustInTeam_('Children', id, teamId, 'Детето не е намерено.'); }
+function mustSession_(id, teamId) { return mustInTeam_('Sessions', id, teamId, 'Тренировката не е намерена.'); }
+
+// За таблици, вързани към дете (Progress, Awards, Competitions)
+function mustChildRow_(name, id, teamId) {
+  var row = findById_(name, id);
+  if (!row) throw new Denied_(404, 'Записът не е намерен.');
+  mustChild_(row.childId, teamId);
+  return row;
+}
+function actDeleteChildRow_(name, id, teamId) {
+  mustChildRow_(name, id, teamId);
+  deleteById_(name, id);
+  return D(null);
+}
+
+// Треньор на тренировка: само от същия отбор, иначе текущият
+function teamCoachOr_(coachId, p) {
+  var c = coachId ? findById_('Coaches', coachId) : null;
+  return (c && String(c.teamId) === p._teamId) ? c.id : p._coachId;
 }
 
 /* ============================================================
@@ -796,6 +1069,18 @@ function numStr_(v) {  // за запис: число като текст, ил�
   if (v === null || v === undefined || v === '') return '';
   var n = Number(v);
   return isNaN(n) ? '' : String(n);
+}
+
+function newInviteCode_() {
+  var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // без 0/O/1/I — лесно за диктуване
+  var existing = {};
+  try { readObjects_('Teams').forEach(function (t) { existing[String(t.inviteCode || '')] = 1; }); } catch (e) {}
+  for (var i = 0; i < 100; i++) {
+    var code = '';
+    for (var k = 0; k < 10; k++) code += abc.charAt(Math.floor(Math.random() * abc.length));
+    if (!existing[code]) return code;
+  }
+  return Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
 }
 
 function newParentCode_() {

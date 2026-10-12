@@ -24,6 +24,17 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 12l6-6 6 6"/></svg>',
+    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14 14.6c.8-.4 1.6-.6 2.5-.6 2.8 0 5 2.4 5 5.4"/></svg>',
+    arrowR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="3"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>',
+    menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v13M6 12l6 6 6-6"/></svg>',
   };
 
@@ -94,98 +105,27 @@
   const route = (re, handler) => routes.push({ re, handler });
   function navigate(hash) { location.hash = hash; }
 
+  // Всеки екран може да регистрира почистване (анимации, слушатели),
+  // което се изпълнява преди следващия екран.
+  let _cleanup = [];
+  const onLeave = (fn) => _cleanup.push(fn);
+  let _lastPath = null;
+
   async function render() {
     const hash = location.hash.replace(/^#/, '') || '/';
-    // защита: ако не е логнат треньор и не е родителски път
+    _cleanup.splice(0).forEach(fn => { try { fn(); } catch {} });
+    closeModal();
+    // нов екран → отгоре; презареждане на същия (напр. след запис) → запазва позицията
+    const base = hash.split('/').slice(0, 3).join('/');
+    if (base !== _lastPath) window.scrollTo(0, 0);
+    _lastPath = base;
     for (const r of routes) {
       const m = hash.match(r.re);
       if (m) { try { await r.handler(...m.slice(1)); } catch (e) { err(e); if (e.status === 401) navigate('/login'); } return; }
     }
-    navigate(API.isAuthed() ? '/app/calendar' : '/login');
+    navigate(API.isAuthed() ? '/app/calendar' : '/');
   }
   window.addEventListener('hashchange', render);
-
-  /* ============================================================
-     ЕКРАН: ВХОД (треньор + родител)
-     ============================================================ */
-  route(/^\/login$/, () => {
-    document.body.classList.remove('has-topbar');
-    app.innerHTML = `
-      <div class="aqua-bg"></div>
-      <div class="auth">
-        <aside class="auth-hero">
-          <div class="auth-hero-in rise">
-            <div class="brand-name" style="font-size:1.3rem;color:#fff;margin-bottom:18px">Swim<span style="color:var(--sky-200)">With</span>Smile</div>
-            <h1 class="auth-h">Плувай<br>с усмивка</h1>
-            <p class="auth-sub">Тренировки, картони и напредък на всяко дете — на едно място, красиво подредено.</p>
-            <div class="auth-feats">
-              <div class="feat">${I.cal}<span>График и тренировки</span></div>
-              <div class="feat">${I.kids}<span>Картони на децата</span></div>
-              <div class="feat">${I.trophy}<span>Постижения и награди</span></div>
-            </div>
-          </div>
-          <div class="wave-deco">
-            <svg viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="rgba(255,255,255,.14)" d="M0,64 C240,110 480,10 720,48 C960,86 1200,20 1440,60 L1440,120 L0,120 Z"/><path fill="rgba(255,255,255,.10)" d="M0,80 C240,40 480,110 720,74 C960,38 1200,100 1440,72 L1440,120 L0,120 Z"/></svg>
-          </div>
-        </aside>
-
-        <main class="auth-panel">
-          <button class="gear-btn" id="cfgBtn" title="Настройки на връзката">${I.gear}</button>
-          <div class="auth-card rise">
-            <div class="seg">
-              <button class="seg-btn active" data-tab="coach">Треньор</button>
-              <button class="seg-btn" data-tab="parent">Родител</button>
-            </div>
-
-            <form id="coachForm" class="auth-form">
-              <h2>Добре дошъл 👋</h2>
-              <p class="subtle" style="margin-bottom:18px">Влез, за да управляваш тренировките.</p>
-              <div class="field"><label>Имейл</label><input class="input" name="email" type="email" placeholder="ime@example.com" required></div>
-              <div class="field"><label>Парола</label><input class="input" name="password" type="password" placeholder="••••••••" required></div>
-              <button class="btn btn-primary btn-block btn-lg" type="submit">Вход</button>
-            </form>
-
-            <form id="parentForm" class="auth-form" hidden>
-              <h2>Родителски достъп ${I.heart}</h2>
-              <p class="subtle" style="margin-bottom:18px">Виж напредъка на детето си.</p>
-              <div class="field"><label>Код от треньора (8 цифри)</label><input class="input" name="code" inputmode="numeric" maxlength="8" placeholder="12345678" required style="letter-spacing:5px;font-weight:700"></div>
-              <div class="field"><label>Дата на раждане на детето</label><input class="input" name="birth" type="date" required></div>
-              <button class="btn btn-sky btn-block btn-lg" type="submit">Виж детето</button>
-            </form>
-          </div>
-        </main>
-      </div>`;
-
-    $$('.seg-btn').forEach(b => b.onclick = () => {
-      $$('.seg-btn').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      const coach = b.dataset.tab === 'coach';
-      $('#coachForm').hidden = !coach; $('#parentForm').hidden = coach;
-    });
-
-    $('#coachForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Влизане…';
-      try {
-        const f = e.target;
-        await API.login(f.email.value.trim(), f.password.value);
-        toast('Здравей!', 'ok'); navigate('/app/calendar');
-      } catch (ex) { err(ex); btn.disabled = false; btn.textContent = 'Вход'; }
-    };
-
-    $('#parentForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Търсене…';
-      try {
-        const f = e.target;
-        const data = await API.parentDashboard(f.code.value.trim(), f.birth.value);
-        sessionStorage.setItem('sws.parent', JSON.stringify(data));
-        navigate('/parent/view');
-      } catch (ex) { err(ex); btn.disabled = false; btn.textContent = 'Виж детето'; }
-    };
-
-    $('#cfgBtn').onclick = openConfig;
-  });
 
   function openConfig() {
     modal({
@@ -208,14 +148,19 @@
       { to: '/app/calendar', key: 'calendar', ico: I.cal, label: 'График' },
       { to: '/app/children', key: 'children', ico: I.kids, label: 'Деца' },
       { to: '/app/achievements', key: 'achievements', ico: I.trophy, label: 'Постижения' },
+      { to: '/app/team', key: 'team', ico: I.team, label: 'Отбор' },
     ];
     const navLink = it => `<a href="#${it.to}" class="${active===it.key?'active':''}">${it.ico}<span>${it.label}</span></a>`;
     app.innerHTML = `
       <div class="aqua-bg"></div>
       <header class="topbar">
-        <div class="brand">
-          <div class="brand-name">Swim<span>With</span>Smile</div>
-        </div>
+        <a class="brand" href="#/app/calendar" aria-label="SwimWithSmile — начало">
+          ${logoMark()}
+          <div class="brand-txt">
+            <div class="brand-name">Swim<span>With</span>Smile</div>
+            ${u.teamName ? `<div class="brand-team">${esc(u.teamName)}</div>` : ''}
+          </div>
+        </a>
         <nav class="nav">
           ${navItems.map(navLink).join('')}
         </nav>
@@ -234,13 +179,26 @@
         body: `<p>Сигурни ли сте, че искате да излезете от профила си?</p>`,
         footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="confirmLogout">${I.logout} Изход</button>`
       });
-      $('#confirmLogout').onclick = () => { closeModal(); API.logout(); navigate('/login'); };
+      $('#confirmLogout').onclick = () => { closeModal(); API.logout(); navigate('/'); };
     };
   }
   const guard = () => { if (!API.isAuthed()) { navigate('/login'); return false; } return true; };
 
+  // Логото: лице, чиято „уста" е вълна — плуване с усмивка
+  let _logoN = 0;
+  function logoMark(size = 38) {
+    const id = 'lg' + (++_logoN);
+    return `<svg class="logo-mark" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">
+      <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#46D6F7"/><stop offset="1" stop-color="#1F5FD6"/></linearGradient></defs>
+      <rect width="40" height="40" rx="12" fill="url(#${id})"/>
+      <circle cx="14.5" cy="14.5" r="2.3" fill="#fff"/><circle cx="25.5" cy="14.5" r="2.3" fill="#fff"/>
+      <path d="M8 22.5c2 0 2-1.8 4-1.8s2 1.8 4 1.8 2-1.8 4-1.8 2 1.8 4 1.8 2-1.8 4-1.8 2 1.8 4 1.8" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".85"/>
+      <path d="M13 27.6c3.9 3.3 10.1 3.3 14 0" stroke="#FFC53D" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  }
+
   // Продължава в app.js (част 2)
-  window.__SWS = { app, shell, guard, modal, closeModal, toast, err, navigate, render, route, routes,
+  window.__SWS = { app, shell, guard, modal, closeModal, toast, err, navigate, render, route, routes, onLeave, logoMark, openConfig,
     I, esc, $, $$, initials, fmtDate, fmtTime, ageFrom, toDateInput, MONTHS, DOW, MOODS, MOOD_EMOJI, GENDERS, pad };
 })();
 
@@ -1109,10 +1067,10 @@
     app.innerHTML = `
       <div class="aqua-bg"></div>
       <div class="parent-top">
-        <div class="brand-name">Swim<span>With</span>Smile</div>
-        <button class="btn btn-ghost btn-sm" id="pOut" style="margin-left:auto">${I.logout} Изход</button>
+        <div class="brand">${S.logoMark()}<div class="brand-name">Swim<span>With</span>Smile</div></div>
+        <button class="btn btn-glass btn-sm" id="pOut" style="margin-left:auto">${I.logout} Изход</button>
       </div>
-      <div class="wrap">
+      <div class="wrap wrap-parent">
         <div class="profile-head rise">${ph}
           <div class="profile-info"><h1>${esc(c.firstName)} ${esc(c.lastName)}</h1>
             <div class="row"><span class="badge">${c.ageYears ?? ageFrom(c.birthDate)} години</span>${c.level?`<span class="badge">${esc(c.level)}</span>`:''}</div>
@@ -1162,6 +1120,6 @@
   `;
   document.head.appendChild(st);
 
-  const render = S.render;
-  render();
+  // Първото рисуване става след като се заредят всички скриптове (вкл. landing.js)
+  document.addEventListener('DOMContentLoaded', () => S.render());
 })();

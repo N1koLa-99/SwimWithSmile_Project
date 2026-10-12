@@ -64,19 +64,34 @@ const API = (() => {
     return data.data;
   }
 
+  function startSession(r) {
+    setToken(r.token);
+    setUser({ id: r.coachId, name: r.fullName, email: r.email,
+      teamId: r.teamId, teamName: r.teamName, role: r.role, plan: r.plan });
+    return r;
+  }
+
   return {
     ApiError, getBase, setBase, getToken, getUser,
     isAuthed: () => !!getToken(),
 
     // ---- Auth ----
     async login(email, password) {
-      const r = await call('login', { email, password }, false);
-      setToken(r.token); setUser({ id: r.coachId, name: r.fullName, email: r.email });
-      return r;
+      return startSession(await call('login', { email, password }, false));
     },
+    async register(dto) { return startSession(await call('register', { data: dto }, false)); },
+    async joinTeam(dto) { return startSession(await call('joinTeam', { data: dto }, false)); },
+    inviteInfo: (code) => call('inviteInfo', { code }, false),
     logout() { setToken(null); setUser(null); },
     coaches: () => call('coaches'),
-    createCoach: (dto) => call('createCoach', { data: dto }),
+
+    // ---- Отбор ----
+    team: () => call('team'),
+    updateTeam: (dto) => call('updateTeam', { data: dto }),
+    setPlan: (plan) => call('setPlan', { plan }),
+    regenerateInvite: () => call('regenerateInvite'),
+    removeCoach: (id) => call('removeCoach', { id }),
+    patchUser(patch) { setUser({ ...(getUser() || {}), ...patch }); },
 
     // ---- Children ----
     children: (includeInactive = false) => call('children', { includeInactive }),
