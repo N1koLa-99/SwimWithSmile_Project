@@ -79,6 +79,8 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   line-height: 1.5;
+  /* lang="bg" включва българските курсивни форми (т→m, д→g); държим стандартната кирилица */
+  font-feature-settings: "locl" 0;
 }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }

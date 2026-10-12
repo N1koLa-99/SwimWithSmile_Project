@@ -343,15 +343,15 @@
           </div>
           <div class="hero-in">
             <div class="hero-copy">
-              <div class="hero-badge" data-reveal="up"><span class="pulse"></span>Безплатно · за треньори и плувни клубове</div>
-              <h1 class="hero-h" data-reveal="words">${split('Дневникът на\nтреньора\nпо *плуване.*')}</h1>
-              <p class="hero-sub" data-reveal="up" style="--d:.35s"><b>График, присъствие, картони и награди</b> за всяко дете — на едно място, от телефона. Родителите виждат напредъка, а ти — кой изпуска тренировки.</p>
+              <div class="hero-badge" data-reveal="up"><span class="pulse"></span>Безплатно за треньори и плувни клубове</div>
+              <h1 class="hero-h" data-reveal="words">${split('*По-умният*\nдневник на\nтреньора.')}</h1>
+              <p class="hero-sub" data-reveal="up" style="--d:.35s"><b>График, присъствие, картони и награди</b> на всяко дете — на едно място, в телефона ти. Родителите следят напредъка, а ти виждаш кой пропуска тренировки.</p>
               <div class="hero-ctas" data-reveal="up" style="--d:.5s">
                 <a class="btn btn-sun btn-xl" href="#/register">Създай отбор безплатно ${I.arrowR}</a>
                 <button class="btn btn-glass btn-xl" type="button" data-go="how">Виж как работи</button>
               </div>
               <ul class="hero-proof" data-reveal="up" style="--d:.65s">
-                <li>${I.check}Без банкова карта</li><li>${I.check}Свързва се с Google Calendar</li><li>${I.check}Работи на телефона</li>
+                <li>${I.check}Без банкова карта</li><li>${I.check}Синхрон с Google Calendar</li><li>${I.check}Работи на всеки телефон</li>
               </ul>
             </div>
 

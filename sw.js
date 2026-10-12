@@ -2,9 +2,9 @@
    Файловете на сайта (CSS/JS/иконки/шрифтове) се пазят локално → второто
    отваряне е моментално. Страницата (index.html) винаги се взима свежа,
    ако има интернет. Заявките към Google Apps Script НЕ се кешират. */
-const CACHE = 'sws-v34';
-const CORE = ['./', 'index.html', 'css/styles.css?v=34', 'css/landing.css?v=34', 'css/app.css?v=34', 'css/mobile.css?v=34',
-  'js/api.js?v=34', 'js/app.js?v=34', 'js/coach.js?v=34', 'js/parent.js?v=34', 'js/landing.js?v=34', 'manifest.json'];
+const CACHE = 'sws-v36';
+const CORE = ['./', 'index.html', 'css/styles.css?v=36', 'css/landing.css?v=36', 'css/app.css?v=36', 'css/mobile.css?v=36',
+  'js/api.js?v=36', 'js/app.js?v=36', 'js/coach.js?v=36', 'js/parent.js?v=36', 'js/landing.js?v=36', 'manifest.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));
