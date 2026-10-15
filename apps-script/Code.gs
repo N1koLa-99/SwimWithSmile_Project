@@ -25,7 +25,8 @@ var SCHEMA = {
                  'diagnosis','objectiveCondition','allergiesMedical','parentContact','emergencyContact',
                  'goals','notes','parentCode','photoUrl','isActive','createdAt','teamId',
                  'parentName','parentPhone','parentEmail','emergencyName','emergencyPhone',
-                 'medicalAlert','specialNeeds','medicalUntil','consentDate','groupId','notifyParent','calendarName'],
+                 'medicalAlert','specialNeeds','medicalUntil','consentDate','groupId','notifyParent','calendarName',
+                 'isAdult'],
   Groups:       ['id','name','color','location','days','time','durationMin','isActive','createdAt','teamId'],
   Sessions:     ['id','sessionDate','startTime','coachId','location','notes','createdAt','teamId',
                  'groupId','durationMin','seriesId','status','gcalKey'],
@@ -42,14 +43,14 @@ var SCHEMA = {
   Outbox:       ['id','teamId','childId','kind','toEmail','toName','subject','html','status','createdAt','sentAt','error']
 };
 
-// Планове: брой треньори и деца в един отбор. Плащанията още не са
+// Планове: брой треньори и плувци (деца и възрастни) в един отбор. Плащанията още не са
 // свързани — планът се сменя от страница „Отбор" в приложението.
 var PLANS = {
   solo: { name: 'Соло',  seats: 1,  kids: 15 },
   team: { name: 'Отбор', seats: 3,  kids: 60 },
   club: { name: 'Клуб',  seats: 10, kids: 300 }
 };
-var SCHEMA_VERSION = '4';
+var SCHEMA_VERSION = '5';
 
 var DEFAULT_ACHIEVEMENTS = [
   ['Първи 25 метра','🏊','Техника','стикер'],
@@ -345,6 +346,7 @@ function handle_(req) {
       case 'removeParticipant':    return actRemoveParticipant_(p);
       case 'markAttendance':       return actMarkAttendance_(p);
       case 'addGroupToSession':    return actAddGroupToSession_(p);
+      case 'addPeopleToSession':   return actAddPeopleToSession_(p);
       case 'attendanceReport':     return actAttendanceReport_(p);
 
       case 'createProgress':       return actCreateProgress_(p);
@@ -596,31 +598,42 @@ function childPatch_(d, p) {
     patch.groupId = (g && String(g.teamId) === p._teamId) ? g.id : '';
   }
   if (d.notifyParent !== undefined) patch.notifyParent = d.notifyParent ? 'TRUE' : 'FALSE';
+  if (d.isAdult !== undefined) patch.isAdult = d.isAdult ? 'TRUE' : 'FALSE';
   if (d.isActive !== undefined) patch.isActive = d.isActive ? 'TRUE' : 'FALSE';
   return patch;
 }
 
 function actCreateChild_(p) {
   var d = p.data || {};
-  if (!String(d.firstName || '').trim() || !d.birthDate) return E(400, 'Име и дата на раждане са задължителни.');
-  var t = findById_('Teams', p._teamId) || {};
+  if (!String(d.firstName || '').trim()) return E(400, 'Името е задължително.');
+  var limit = planLimitError_(p._teamId, 1);
+  if (limit) return limit;
+  var row = newChildRow_(childPatch_(d, p), p._teamId);
+  appendObject_('Children', row);
+  return D({ id: row.id, parentCode: row.parentCode });
+}
+
+// Проверка за лимита на плана (колко плувци ще добавим)
+function planLimitError_(teamId, adding) {
+  var t = findById_('Teams', teamId) || {};
   var plan = PLANS[t.plan] || PLANS.solo;
-  var count = inTeam_(readObjects_('Children'), p._teamId).filter(function (c) { return nb_(c.isActive); }).length;
-  if (count >= plan.kids) return E(403, 'Достигнат е лимитът от ' + plan.kids + ' деца за плана „' + plan.name + '".');
-  var id = Utilities.getUuid();
-  var code = newParentCode_();
-  var row = childPatch_(d, p);
-  row.id = id; row.parentCode = code; row.createdAt = nowIso_(); row.teamId = p._teamId;
+  var count = inTeam_(readObjects_('Children'), teamId).filter(function (c) { return nb_(c.isActive); }).length;
+  if (count + adding > plan.kids) return E(403, 'Достигнат е лимитът от ' + plan.kids + ' плувци за плана „' + plan.name + '".');
+  return null;
+}
+
+// Нов ред за картон — общо за „Нов плувец" и за автоматичните картони
+function newChildRow_(row, teamId) {
+  row.id = Utilities.getUuid(); row.parentCode = newParentCode_(); row.createdAt = nowIso_(); row.teamId = teamId;
   row.isActive = 'TRUE';
   if (row.notifyParent === undefined) row.notifyParent = 'TRUE';
-  appendObject_('Children', row);
-  return D({ id: id, parentCode: code });
+  return row;
 }
 
 function actUpdateChild_(p) {
   mustChild_(p.id, p._teamId);
   var patch = childPatch_(p.data || {}, p);
-  if (!updateById_('Children', p.id, patch)) return E(404, 'Детето не е намерено.');
+  if (!updateById_('Children', p.id, patch)) return E(404, 'Картонът не е намерен.');
   return D(null);
 }
 
@@ -636,7 +649,7 @@ function actDeleteChild_(p) {
 function actRegenerateCode_(p) {
   mustChild_(p.id, p._teamId);
   var code = newParentCode_();
-  if (!updateById_('Children', p.id, { parentCode: code })) return E(404, 'Детето не е намерено.');
+  if (!updateById_('Children', p.id, { parentCode: code })) return E(404, 'Картонът не е намерен.');
   return D({ parentCode: code });
 }
 
@@ -776,7 +789,7 @@ function actSendParentInvite_(p) {
     '<p>Треньорите от <b>' + h_(team.name || 'SwimWithSmile') + '</b> вече водят дневник на тренировките на <b>' +
     h_(child.firstName) + '</b>. Можете да виждате наградите, уменията и напредъка по всяко време.</p>' +
     '<p style="font-size:18px">Код за достъп: <b style="letter-spacing:2px">' + h_(child.parentCode) + '</b><br>' +
-    '+ датата на раждане на детето.</p>' + appLinkHtml_('Отвори родителския достъп', '#/login?parent');
+    '+ датата на раждане' + (nb_(child.isAdult) ? '' : ' на детето') + '.</p>' + appLinkHtml_('Отвори родителския достъп', '#/login?parent');
   var id = enqueue_({ teamId: p._teamId, childId: child.id, kind: 'invite', toEmail: child.parentEmail,
     toName: child.parentName || '', subject: 'Достъп до дневника на ' + child.firstName, html: html });
   var sent = sendOutboxRow_(id);
@@ -948,21 +961,27 @@ function actCreateSession_(p) {
       durationMin: numStr_(d.durationMin) || (group ? numStr_(group.durationMin) : ''), seriesId: seriesId, status: ''
     };
   });
+  // Хората, записани по име. Нови имена → нов картон автоматично (преди тренировката, за да не остане половин запис)
+  var res = resolvePeople_(d.people, p._teamId);
+  if (res.error) return res.error;
   appendObjects_('Sessions', rows);
 
-  // Децата от групата се добавят автоматично (присъствието е „неотбелязано")
+  // Плувците от групата се добавят автоматично (присъствието е „неотбелязано")
+  var ids = {};
   if (group) {
-    var kids = inTeam_(readObjects_('Children'), p._teamId)
-      .filter(function (c) { return nb_(c.isActive) && String(c.groupId) === String(group.id); });
-    var parts = [];
-    rows.forEach(function (s) {
-      kids.forEach(function (c) {
-        parts.push({ id: Utilities.getUuid(), sessionId: s.id, childId: c.id, attended: '', updatedAt: nowIso_() });
-      });
-    });
-    if (parts.length) appendObjects_('Participants', parts);
+    inTeam_(readObjects_('Children'), p._teamId)
+      .filter(function (c) { return nb_(c.isActive) && String(c.groupId) === String(group.id); })
+      .forEach(function (c) { ids[c.id] = 1; });
   }
-  return D({ id: rows[0].id, count: rows.length, seriesId: seriesId || null });
+  res.ids.forEach(function (id) { ids[id] = 1; });
+  var parts = [];
+  rows.forEach(function (s) {
+    Object.keys(ids).forEach(function (cid) {
+      parts.push({ id: Utilities.getUuid(), sessionId: s.id, childId: cid, attended: '', updatedAt: nowIso_() });
+    });
+  });
+  if (parts.length) appendObjects_('Participants', parts);
+  return D({ id: rows[0].id, count: rows.length, seriesId: seriesId || null, created: res.created });
 }
 
 function actUpdateSession_(p) {
@@ -1082,6 +1101,62 @@ function actAddGroupToSession_(p) {
     .map(function (c) { return { id: Utilities.getUuid(), sessionId: p.sessionId, childId: c.id, attended: '', updatedAt: nowIso_() }; });
   if (add.length) appendObjects_('Participants', add);
   return D({ added: add.length });
+}
+
+// Списък от хора за тренировка: [{ childId }] или [{ name, isAdult }].
+// Име, което няма картон → създава се картон само с име (останалото се попълва после).
+function normName_(x) { return String(x || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+
+function resolvePeople_(people, teamId) {
+  people = Array.isArray(people) ? people.slice(0, 100) : [];
+  if (!people.length) return { ids: [], created: [] };
+  var all = inTeam_(readObjects_('Children'), teamId);
+  var byId = {}, byName = {};
+  all.forEach(function (c) {
+    byId[c.id] = c;
+    var full = normName_((c.firstName || '') + ' ' + (c.lastName || ''));
+    if (full && !byName[full]) byName[full] = c;
+    var cal = normName_(c.calendarName);
+    if (cal && !byName[cal]) byName[cal] = c;
+  });
+  var ids = [], newRows = [], seen = {};
+  people.forEach(function (x) {
+    if (!x) return;
+    if (x.childId) { if (byId[x.childId] && !seen[x.childId]) { seen[x.childId] = 1; ids.push(x.childId); } return; }
+    var name = String(x.name || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+    if (!name) return;
+    var key = normName_(name);
+    var hit = byName[key];
+    if (hit) {
+      if (!nb_(hit.isActive)) updateById_('Children', hit.id, { isActive: 'TRUE' });
+      if (!seen[hit.id]) { seen[hit.id] = 1; ids.push(hit.id); }
+      return;
+    }
+    var parts = name.split(' ');
+    var row = newChildRow_({ firstName: parts.shift(), lastName: parts.join(' '),
+      isAdult: x.isAdult ? 'TRUE' : 'FALSE', trainingStartDate: today_() }, teamId);
+    byName[key] = row; seen[row.id] = 1;
+    newRows.push(row); ids.push(row.id);
+  });
+  if (newRows.length) {
+    var limit = planLimitError_(teamId, newRows.length);
+    if (limit) return { error: limit };
+    appendObjects_('Children', newRows);
+  }
+  return { ids: ids, created: newRows.map(function (r) { return { id: r.id, name: (r.firstName + ' ' + r.lastName).trim() }; }) };
+}
+
+function actAddPeopleToSession_(p) {
+  mustSession_(p.sessionId, p._teamId);
+  var res = resolvePeople_(p.people, p._teamId);
+  if (res.error) return res.error;
+  var present = {};
+  readObjects_('Participants').forEach(function (pt) { if (String(pt.sessionId) === String(p.sessionId)) present[pt.childId] = 1; });
+  var add = res.ids.filter(function (cid) { return !present[cid]; }).map(function (cid) {
+    return { id: Utilities.getUuid(), sessionId: p.sessionId, childId: cid, attended: p.attended ? 'TRUE' : '', updatedAt: nowIso_() };
+  });
+  if (add.length) appendObjects_('Participants', add);
+  return D({ added: add.length, created: res.created });
 }
 
 function actRemoveParticipant_(p) {
@@ -1589,7 +1664,7 @@ function alertsFor_(teamId, date) {
     var bd = nd_(c.birthDate).slice(5);
     if (bd && bd === md) alerts.push({ kind: 'birthday', level: 'fun', childId: c.id, childName: name, text: 'Има рожден ден днес! 🎂' });
     else if (bd && week.indexOf(bd) > 0) alerts.push({ kind: 'birthday', level: 'fun', childId: c.id, childName: name, text: 'Рожден ден на ' + bd.split('-').reverse().join('.') + ' 🎂' });
-    if (!c.parentPhone && !c.emergencyPhone && !c.emergencyContact && !c.parentContact)
+    if (!nb_(c.isAdult) && !c.parentPhone && !c.emergencyPhone && !c.emergencyContact && !c.parentContact)
       alerts.push({ kind: 'contact', level: 'mid', childId: c.id, childName: name, text: 'Няма телефон за спешна връзка' });
   });
   var rank = { high: 0, mid: 1, fun: 2 };
@@ -1607,7 +1682,7 @@ function actParentDashboard_(p) {
   var child = readObjects_('Children').filter(function (c) {
     return String(c.parentCode || '') === code && nd_(c.birthDate) === bd && nb_(c.isActive);
   })[0];
-  if (!child) return E(404, 'Няма дете с този код и дата на раждане.');
+  if (!child) return E(404, 'Няма профил с този код и дата на раждане.');
 
   var teamId = String(child.teamId);
   var team = findById_('Teams', teamId) || {};
@@ -1643,7 +1718,7 @@ function actParentDashboard_(p) {
     teamName: team.name || '',
     child: {
       firstName: child.firstName, lastName: child.lastName, birthDate: nd_(child.birthDate),
-      level: nn_(child.level), goals: nn_(child.goals), ageYears: ageFromBd_(nd_(child.birthDate)),
+      level: nn_(child.level), goals: nn_(child.goals), ageYears: nd_(child.birthDate) ? ageFromBd_(nd_(child.birthDate)) : null, isAdult: nb_(child.isAdult),
       groupName: (groups[child.groupId] || {}).name || null
     },
     stats: stats,
@@ -1723,7 +1798,7 @@ function wrapEmail_(inner) {
   return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#0B2545;line-height:1.5">' +
     '<div style="background:linear-gradient(135deg,#46D6F7,#1F5FD6);color:#fff;padding:18px 22px;border-radius:16px 16px 0 0;font-weight:800;font-size:18px">🌊 SwimWithSmile</div>' +
     '<div style="background:#fff;border:1px solid #E3ECFA;border-top:0;padding:22px;border-radius:0 0 16px 16px">' + inner + '</div>' +
-    '<p style="color:#7E93B4;font-size:12px;text-align:center">Получавате този имейл, защото детето ви тренира с отбор в SwimWithSmile. За отписване кажете на треньора.</p></div>';
+    '<p style="color:#7E93B4;font-size:12px;text-align:center">Получавате този имейл, защото тренирате (или детето ви тренира) с отбор в SwimWithSmile. За отписване кажете на треньора.</p></div>';
 }
 
 function sendBrevo_(toEmail, toName, subject, html) {
@@ -1832,7 +1907,7 @@ function childListOut_(c, st) {
   st = st || emptyStats_();
   return {
     id: c.id, firstName: c.firstName, lastName: c.lastName, birthDate: nd_(c.birthDate),
-    level: nn_(c.level), groupId: nn_(c.groupId), photoUrl: nn_(c.photoUrl), isActive: nb_(c.isActive),
+    level: nn_(c.level), groupId: nn_(c.groupId), photoUrl: nn_(c.photoUrl), isActive: nb_(c.isActive), isAdult: nb_(c.isAdult),
     medicalAlert: nn_(c.medicalAlert), specialNeeds: nn_(c.specialNeeds),
     points: st.points, lvl: { no: st.level.no, name: st.level.name, icon: st.level.icon, progress: st.level.progress },
     pct: st.pct30 != null ? st.pct30 : st.pct, absStreak: st.absStreak
@@ -1852,7 +1927,7 @@ function childOut_(c) {
     emergencyName: nn_(c.emergencyName), emergencyPhone: nn_(c.emergencyPhone),
     medicalAlert: nn_(c.medicalAlert), specialNeeds: nn_(c.specialNeeds),
     medicalUntil: nd_(c.medicalUntil) || null, consentDate: nd_(c.consentDate) || null,
-    groupId: nn_(c.groupId), calendarName: nn_(c.calendarName), notifyParent: c.notifyParent === '' || c.notifyParent == null ? true : nb_(c.notifyParent)
+    groupId: nn_(c.groupId), calendarName: nn_(c.calendarName), isAdult: nb_(c.isAdult), notifyParent: c.notifyParent === '' || c.notifyParent == null ? true : nb_(c.notifyParent)
   };
 }
 
@@ -2012,7 +2087,7 @@ function mustInTeam_(name, id, teamId, msg) {
   if (!o || String(o.teamId) !== String(teamId)) throw new Denied_(404, msg);
   return o;
 }
-function mustChild_(id, teamId) { return mustInTeam_('Children', id, teamId, 'Детето не е намерено.'); }
+function mustChild_(id, teamId) { return mustInTeam_('Children', id, teamId, 'Картонът не е намерен.'); }
 function mustSession_(id, teamId) { return mustInTeam_('Sessions', id, teamId, 'Тренировката не е намерена.'); }
 
 function mustChildRow_(name, id, teamId) {

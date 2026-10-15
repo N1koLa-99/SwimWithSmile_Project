@@ -20,13 +20,13 @@
   const PLANS = [
     { key: 'solo', name: 'Соло', month: 0, year: 0, seats: 1, kids: 15,
       tag: 'За треньор, който тепърва започва',
-      feats: ['1 треньор', 'До 15 деца', 'График, картони и дневник', 'Карти за напредък и награди', 'Родителски достъп с код'] },
+      feats: ['1 треньор', 'До 15 плувци', 'График, картони и дневник', 'Карти за напредък и награди', 'Родителски достъп с код'] },
     { key: 'team', name: 'Отбор', month: 9, year: 7, seats: 3, kids: 60, featured: true,
       tag: 'За двама-трима треньори с общи деца',
-      feats: ['До 3 треньори', 'До 60 деца', 'Покана за колега с линк', 'Цвят за всеки треньор в графика', 'Всичко от „Соло"'] },
+      feats: ['До 3 треньори', 'До 60 плувци', 'Покана за колега с линк', 'Цвят за всеки треньор в графика', 'Всичко от „Соло"'] },
     { key: 'club', name: 'Клуб', month: 19, year: 15, seats: 10, kids: 300,
       tag: 'За плувен клуб с няколко групи',
-      feats: ['До 10 треньори', 'До 300 деца', 'Приоритетна поддръжка', 'Помощ при прехвърляне на данни', 'Всичко от „Отбор"'] },
+      feats: ['До 10 треньори', 'До 300 плувци', 'Приоритетна поддръжка', 'Помощ при прехвърляне на данни', 'Всичко от „Отбор"'] },
   ];
   const planByKey = (k) => PLANS.find(p => p.key === k) || PLANS[0];
 
@@ -708,7 +708,7 @@
       body: `
         <div class="seg seg-slide" role="tablist">
           <button class="seg-btn ${parentFirst ? '' : 'active'}" data-tab="coach" role="tab">Треньор</button>
-          <button class="seg-btn ${parentFirst ? 'active' : ''}" data-tab="parent" role="tab">Родител</button>
+          <button class="seg-btn ${parentFirst ? 'active' : ''}" data-tab="parent" role="tab">Плувец / родител</button>
           <i class="seg-thumb"></i>
         </div>
 
@@ -722,14 +722,14 @@
         </form>
 
         <form id="parentForm" class="auth-form" ${parentFirst ? '' : 'hidden'} novalidate>
-          <h2>Родителски достъп</h2>
-          <p class="auth-lead">Виж напредъка и наградите на детето си.</p>
+          <h2>Достъп с код</h2>
+          <p class="auth-lead">Виж напредъка и наградите — твоите или на детето ти.</p>
           <div class="field"><label for="p_code">Код от треньора</label>
             <input class="input input-code" id="p_code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="• • • • • • • •" required></div>
-          <div class="field"><label for="p_birth">Дата на раждане на детето</label><input class="input" id="p_birth" name="birth" type="date" required></div>
+          <div class="field"><label for="p_birth">Дата на раждане на плувеца</label><input class="input" id="p_birth" name="birth" type="date" required></div>
           <label class="switch"><input type="checkbox" id="p_rem" checked><span></span>Запомни ме на това устройство</label>
-          <button class="btn btn-sky btn-block btn-lg" type="submit">Виж детето ${I.arrowR}</button>
-          <p class="auth-alt">Кодът е в картона на детето. Поискай го от треньора.</p>
+          <button class="btn btn-sky btn-block btn-lg" type="submit">Виж напредъка ${I.arrowR}</button>
+          <p class="auth-alt">Кодът е в картона на плувеца. Поискай го от треньора.</p>
         </form>`
     });
     bindEyes();

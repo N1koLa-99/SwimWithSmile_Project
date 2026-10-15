@@ -1,5 +1,5 @@
 /* ============================================================
-   SwimWithSmile — Родителски изглед (за родителя и детето)
+   SwimWithSmile — Изглед с код (за родителя на дете или за самия възрастен плувец)
    Без здравни данни и без вътрешните бележки на треньорите.
    ============================================================ */
 (() => {
@@ -61,7 +61,7 @@
           <div class="p-hero-lvl"><span class="p-lvl-ico">${lvl.icon || '💧'}</span></div>
           <div class="p-hero-main">
             <h1>${esc(c.firstName)} ${esc(c.lastName || '')}</h1>
-            <p>${c.ageYears ?? ageFrom(c.birthDate)} години${c.groupName ? ' · ' + esc(c.groupName) : ''}</p>
+            <p>${[c.ageYears != null ? c.ageYears + ' години' : '', c.groupName ? esc(c.groupName) : ''].filter(Boolean).join(' · ')}</p>
             <div class="p-lvl-name">Ниво ${lvl.no || 1}: <b>${esc(lvl.name || 'Капка')}</b></div>
             <div class="lvl-bar lvl-bar-lg light"><i style="width:${lvl.progress || 0}%"></i></div>
             <small>${st.points || 0} точки${lvl.next ? ` · още ${lvl.next.min - (st.points || 0)} до ${lvl.next.icon} ${esc(lvl.next.name)}` : ' · най-високото ниво! 🎉'}</small>

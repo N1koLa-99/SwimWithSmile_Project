@@ -490,3 +490,27 @@ input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border: none; b
 .gc-n { min-width: 0; }
 .gc-n b { display: block; color: var(--navy); font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gc-n small { color: var(--muted); font-weight: 700; font-size: .74rem; }
+
+/* ---------- Плувци по име в тренировка (автоматичен картон) ---------- */
+.ns-wrap { position: relative; }
+.ns-box { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; background: #fff; border-radius: 16px; box-shadow: var(--shadow-lg, 0 12px 32px rgba(11,37,69,.18)); padding: 6px; display: grid; gap: 2px; max-height: 280px; overflow: auto; }
+.ns-box[hidden] { display: none; }
+.ns-i { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; text-align: left; font-weight: 700; color: var(--navy); width: 100%; }
+.ns-i small { margin-left: auto; color: var(--muted); font-weight: 600; font-size: .75rem; }
+.ns-i.on, .ns-i:hover { background: var(--sky-50); }
+.ns-new { color: var(--brand); }
+.ns-new svg { width: 18px; height: 18px; flex-shrink: 0; }
+.pp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-chips:not(:empty) { margin-bottom: 8px; }
+.pp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-radius: 99px; background: var(--sky-50); font-weight: 700; font-size: .88rem; color: var(--navy); }
+.pp-chip.is-new { background: #FFF4E5; }
+.pp-chip small { font-size: .68rem; font-weight: 800; color: #B45309; text-transform: uppercase; letter-spacing: .03em; }
+.pp-type { padding: 3px 8px; border-radius: 99px; background: #fff; font-size: .75rem; font-weight: 700; color: var(--ink-2); }
+.pp-x { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 1rem; line-height: 1; color: var(--muted); }
+.pp-x:hover { background: #fff; color: var(--red, #EF5F6B); }
+.sd-name { margin: 6px 0 10px; }
+.tag-adult { background: #E0F2FE; color: #075985; }
+.typepick { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 16px; background: var(--sky-50); margin-bottom: 16px; }
+.typepick button { height: 44px; border-radius: 12px; font-weight: 800; color: var(--ink-2); }
+.typepick button.active { background: #fff; color: var(--navy); box-shadow: var(--shadow-sm); }
+[data-kidonly][hidden] { display: none !important; }

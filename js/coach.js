@@ -1,5 +1,5 @@
 /* ============================================================
-   SwimWithSmile — Деца, картон, умения, групи, посещаемост, „Клуб"
+   SwimWithSmile — Плувци (деца и възрастни), картон, умения, групи, посещаемост, „Клуб"
    ============================================================ */
 (() => {
   const S = window.__SWS;
@@ -11,17 +11,18 @@
   const pctClass = (p) => p == null ? '' : p >= 80 ? 'good' : p >= 60 ? 'mid' : 'low';
 
   /* ===================== ДЕЦА ===================== */
-  const kidsUi = { q: '', group: '' };
+  const kidsUi = { q: '', group: '', type: '' };
 
   route(/^\/app\/children$/, async () => {
     if (!guard()) return;
     shell('children', `
       <div class="page-head">
-        <div><h1 class="pagettl">Деца</h1><p class="subtle" id="kidsCount">Картони, нива и посещаемост</p></div>
-        <button class="btn btn-primary hide-m" id="newChild">${I.plus}<span>Ново дете</span></button>
+        <div><h1 class="pagettl">Плувци</h1><p class="subtle" id="kidsCount">Картони, нива и посещаемост</p></div>
+        <button class="btn btn-primary hide-m" id="newChild">${I.plus}<span>Нов плувец</span></button>
       </div>
       <div class="filters">
         <label class="search">${I.search}<input class="input" id="kq" type="search" placeholder="Търси по име…" value="${esc(kidsUi.q)}" autocomplete="off"></label>
+        <div class="fchips" id="kt"></div>
         <div class="fchips" id="kg"></div>
       </div>
       <div id="kids">${loading()}</div>`);
@@ -35,11 +36,17 @@
       $$('#kg .fchip').forEach(b => b.onclick = () => { kidsUi.group = b.dataset.g; paint(boot); });
       const q = kidsUi.q.trim().toLowerCase();
       const all = boot.children || [];
+      const nAdults = all.filter(k => k.isAdult).length;
+      // Филтър деца / възрастни — само ако в отбора има и двете
+      $('#kt').innerHTML = nAdults && nAdults < all.length ? [['', 'Всички'], ['kid', 'Деца'], ['adult', 'Възрастни']]
+        .map(([v, l]) => `<button class="fchip ${kidsUi.type === v ? 'on' : ''}" data-t="${v}">${l}</button>`).join('') : '';
+      $$('#kt .fchip').forEach(b => b.onclick = () => { kidsUi.type = b.dataset.t; paint(boot); });
       const list = all.filter(k => (!q || `${k.firstName} ${k.lastName}`.toLowerCase().includes(q))
-        && (!kidsUi.group || (kidsUi.group === '-' ? !k.groupId : k.groupId === kidsUi.group)));
-      $('#kidsCount').textContent = plural(all.length, 'дете', 'деца') + ' в отбора';
+        && (!kidsUi.group || (kidsUi.group === '-' ? !k.groupId : k.groupId === kidsUi.group))
+        && (!kidsUi.type || (kidsUi.type === 'adult' ? k.isAdult : !k.isAdult)));
+      $('#kidsCount').textContent = plural(all.length, 'плувец', 'плувци') + ' в отбора' + (nAdults ? ` · ${nAdults} възрастни` : '');
       const host = $('#kids');
-      if (!all.length) { host.innerHTML = emptyState(I.kids, 'Още няма деца', 'Добави първото дете — отнема минута.', `<button class="btn btn-primary" style="margin-top:16px" id="emptyKid">${I.plus} Ново дете</button>`); $('#emptyKid').onclick = () => childForm(); return; }
+      if (!all.length) { host.innerHTML = emptyState(I.kids, 'Още няма плувци', 'Добави първия картон — или просто напиши име в тренировка от „График".', `<button class="btn btn-primary" style="margin-top:16px" id="emptyKid">${I.plus} Нов плувец</button>`); $('#emptyKid').onclick = () => childForm(); return; }
       if (!list.length) { host.innerHTML = emptyState(I.search, 'Няма съвпадения', 'Опитай с друго име или група.'); return; }
       const gById = Object.fromEntries(groups.map(g => [g.id, g]));
       host.innerHTML = `<div class="kid-grid2">${list.map(k => kidCard(k, gById[k.groupId])).join('')}</div>`;
@@ -60,7 +67,8 @@
       <span class="kc-main">
         <span class="kc-name">${esc(k.firstName)} ${esc(k.lastName)}${k.medicalAlert ? ` <span class="kc-alert" title="Здравно предупреждение">${I.alert}</span>` : ''}</span>
         <span class="kc-meta">
-          <span>${ageFrom(k.birthDate)} г.</span>
+          ${k.birthDate ? `<span>${ageFrom(k.birthDate)} г.</span>` : ''}
+          ${k.isAdult ? '<span class="tag tag-adult">възрастен</span>' : ''}
           ${g ? `<span class="gtag" style="--gc:${g.color}"><i></i>${esc(g.name)}</span>` : ''}
           ${k.specialNeeds ? '<span class="tag tag-sop">СОП</span>' : ''}
           ${k.absStreak >= 2 ? `<span class="tag tag-warn">${k.absStreak}× отс.</span>` : ''}
@@ -87,21 +95,22 @@
     const phone = child.parentPhone || '';
     const ePhone = child.emergencyPhone || '';
     $('#prof').innerHTML = `
-      <a href="#/app/children" class="btn btn-ghost btn-sm back">${I.chevL} Всички деца</a>
+      <a href="#/app/children" class="btn btn-ghost btn-sm back">${I.chevL} Всички плувци</a>
       <section class="ph2 rise">
         <div class="ph2-top">
           ${avatar(child.firstName, child.lastName, 'av-xl')}
           <div class="ph2-info">
             <h1>${esc(child.firstName)} ${esc(child.lastName)}</h1>
             <div class="ph2-tags">
-              <span class="badge">${ageFrom(child.birthDate)} години</span>
+              ${child.birthDate ? `<span class="badge">${ageFrom(child.birthDate)} години</span>` : ''}
+              ${child.isAdult ? '<span class="badge">Възрастен</span>' : ''}
               ${g ? `<span class="badge gtag" style="--gc:${g.color}"><i></i>${esc(g.name)}</span>` : ''}
               ${child.specialNeeds ? `<span class="badge badge-sop">СОП</span>` : ''}
               ${child.level ? `<span class="badge">${esc(child.level)}</span>` : ''}
             </div>
           </div>
           <div class="ph2-call">
-            ${phone ? `<a class="btn btn-sun btn-sm" href="${telHref(phone)}">${I.phone}<span>Родител</span></a>` : ''}
+            ${phone ? `<a class="btn btn-sun btn-sm" href="${telHref(phone)}">${I.phone}<span>${child.isAdult ? 'Обади се' : 'Родител'}</span></a>` : ''}
             ${ePhone && ePhone !== phone ? `<a class="btn btn-glass btn-sm" href="${telHref(ePhone)}">${I.phone}<span>Спешен</span></a>` : ''}
           </div>
         </div>
@@ -116,7 +125,7 @@
         </div>
       </section>
       ${child.medicalAlert ? `<div class="med-banner rise">${I.alert}<span><b>Внимание:</b> ${esc(child.medicalAlert)}</span></div>` : ''}
-      ${st.absStreak >= 2 ? `<div class="note warn rise">🚩 Отсъства ${st.absStreak} поредни тренировки${child.specialNeeds ? ' — при СОП постоянството е важно, обади се на родителя.' : '.'}</div>` : ''}
+      ${st.absStreak >= 2 ? `<div class="note warn rise">🚩 Отсъства ${st.absStreak} поредни тренировки${child.specialNeeds ? (child.isAdult ? ' — при СОП постоянството е важно, обади се.' : ' — при СОП постоянството е важно, обади се на родителя.') : '.'}</div>` : ''}
       <div class="tabs" id="tabs" role="tablist">
         ${[['card', 'Картон'], ['skills', 'Умения'], ['sessions', 'Тренировки'], ['progress', 'Напредък'], ['ach', 'Награди'], ['comp', 'Състезания']]
           .map(([k, l]) => `<button class="tab" data-t="${k}" role="tab">${l}</button>`).join('')}
@@ -162,7 +171,9 @@
         <button class="btn btn-primary btn-sm" id="editChild">${I.edit} Редакция</button>
         <button class="btn btn-ghost btn-sm" id="printChild">${I.copy} Печат</button>
       </div>
-      ${section(I.phone, 'Спешна връзка',
+      ${c.isAdult ? section(I.phone, 'Контакти',
+        infoItem('Телефон', phoneHtml(c.parentPhone), { html: true }) +
+        infoItem('Имейл', c.parentEmail)) : section(I.phone, 'Спешна връзка',
         infoItem('Родител', c.parentName) +
         infoItem('Телефон', phoneHtml(c.parentPhone), { html: true }) +
         infoItem('Имейл', c.parentEmail) +
@@ -182,7 +193,7 @@
         infoItem('Цели', c.goals, { wide: true }) +
         infoItem('Бележки', c.notes, { wide: true }))}
       <div class="card-section">
-        <div class="card-section-title"><span class="ico">${I.lock}</span>Достъп за родителя</div>
+        <div class="card-section-title"><span class="ico">${I.lock}</span>${c.isAdult ? 'Достъп до профила' : 'Достъп за родителя'}</div>
         <div class="pcode">
           <div><small>Код</small><b>${esc(String(c.parentCode).replace(/(\d{4})(\d{4})/, '$1 $2'))}</b><small>+ дата на раждане</small></div>
           <div class="pcode-btns">
@@ -192,19 +203,23 @@
             <button class="btn btn-ghost btn-sm" id="regen">${I.refresh} Нов код</button>
           </div>
         </div>
-        <p class="subtle small">${c.notifyParent && c.parentEmail ? '✉️ Родителят получава имейл при награда, ново умение и седмично обобщение.' : 'Добави имейл на родителя, за да получава известия.'}
+        ${!c.birthDate ? `<p class="note warn small">Няма дата на раждане — кодът няма да работи, докато не я добавиш. <button class="linkbtn" id="addBd">Добави</button></p>` : ''}
+        <p class="subtle small">${c.notifyParent && c.parentEmail ? (c.isAdult ? '✉️ Получава имейл при награда, ново умение и седмично обобщение.' : '✉️ Родителят получава имейл при награда, ново умение и седмично обобщение.') : (c.isAdult ? 'Добави имейл, за да получава известия.' : 'Добави имейл на родителя, за да получава известия.')}
           ${c.consentDate ? ` · Съгласие за данните: ${fmtDate(c.consentDate)}` : ' · <b style="color:#B45309">Няма отбелязано съгласие за личните данни.</b>'}</p>
       </div>
       <div class="danger-zone">
-        <button class="btn btn-ghost btn-sm" id="archChild">${c.isActive ? '📦 Архивирай (спря да тренира)' : '♻️ Върни като активно'}</button>
+        <button class="btn btn-ghost btn-sm" id="archChild">${c.isActive ? '📦 Архивирай (спря да тренира)' : '♻️ Върни като активен'}</button>
         <button class="btn btn-ghost btn-sm" id="delChild" style="color:var(--red)">${I.trash} Изтрий завинаги</button>
       </div>
     </div>`;
   }
   function bindCardTab(c) {
     const loginUrl = `${location.origin}${location.pathname}#/login?parent`;
-    const msg = `Здравейте! Напредъкът на ${c.firstName} в басейна: ${loginUrl}\nКод: ${c.parentCode} + датата на раждане на детето.`;
+    const msg = c.isAdult
+      ? `Здравей! Напредъкът ти в басейна: ${loginUrl}\nКод: ${c.parentCode} + твоята дата на раждане.`
+      : `Здравейте! Напредъкът на ${c.firstName} в басейна: ${loginUrl}\nКод: ${c.parentCode} + датата на раждане на детето.`;
     $('#editChild').onclick = () => childForm(c);
+    const ab = $('#addBd'); if (ab) ab.onclick = () => childForm(c);
     $('#printChild').onclick = () => window.print();
     $('#copyCode').onclick = () => copyText(msg);
     const sh = $('#shareCode'); if (sh) sh.onclick = () => navigator.share({ title: 'SwimWithSmile', text: msg }).catch(() => {});
@@ -216,14 +231,14 @@
       busy(si, false);
     };
     $('#regen').onclick = async () => {
-      if (!await ask('Нов код', 'Старият код спира да работи веднага. Ще трябва да дадеш новия на родителя.', 'Смени кода', true)) return;
+      if (!await ask('Нов код', c.isAdult ? 'Старият код спира да работи веднага. Ще трябва да дадеш новия.' : 'Старият код спира да работи веднага. Ще трябва да дадеш новия на родителя.', 'Смени кода', true)) return;
       try { const r = await API.regenerateCode(c.id); toast('Нов код: ' + r.parentCode, 'ok'); reloadChild(); } catch (e) { err(e); }
     };
     $('#archChild').onclick = async () => {
       try { await API.updateChild(c.id, { isActive: !c.isActive }); toast(c.isActive ? 'Архивирано' : 'Активно', 'ok'); navigate('/app/children'); } catch (e) { err(e); }
     };
     $('#delChild').onclick = async () => {
-      if (!await ask('Изтриване завинаги', `Ще изтрия <b>${esc(c.firstName)} ${esc(c.lastName)}</b> и ЦЯЛАТА история — тренировки, умения, награди, състезания. Ако детето просто е спряло, по-добре го архивирай.`, 'Изтрий завинаги', true)) return;
+      if (!await ask('Изтриване завинаги', `Ще изтрия <b>${esc(c.firstName)} ${esc(c.lastName)}</b> и ЦЯЛАТА история — тренировки, умения, награди, състезания. Ако просто е спрял(а) да тренира, по-добре архивирай картона.`, 'Изтрий завинаги', true)) return;
       try { await API.deleteChild(c.id); toast('Изтрито', 'ok'); navigate('/app/children'); } catch (e) { err(e); }
     };
   }
@@ -237,7 +252,7 @@
     const done = list.filter(s => s.done).length;
     host.innerHTML = `<div class="card card-pad rise">
       <div class="sk-head"><div><b>${done} от ${list.length}</b> умения</div><span class="lvl-bar lvl-bar-lg"><i style="width:${Math.round(done / list.length * 100)}%"></i></span></div>
-      <p class="hint" style="margin-bottom:16px">Докосни умение, когато детето го постигне — точките и нивото се смятат сами, а родителят получава известие.</p>
+      <p class="hint" style="margin-bottom:16px">Докосни умение, когато плувецът го постигне — точките и нивото се смятат сами, а известието отива по имейл.</p>
       ${Object.keys(stages).sort().map(k => {
         const st = stages[k]; const d = st.items.filter(s => s.done).length;
         return `<div class="sk-stage"><div class="sk-stage-h"><span class="sk-no">${k}</span><b>${esc(st.name)}</b><small>${d}/${st.items.length}</small></div>
@@ -258,12 +273,12 @@
     });
   }
 
-  /* ---------- Тренировки на детето ---------- */
+  /* ---------- Тренировки на плувеца ---------- */
   let _childSessions = [];
   async function sessionsTab(c) {
     const list = await API.childHistory(c.id) || [];
     _childSessions = list;
-    if (!list.length) return emptyState(I.cal, 'Няма тренировки', 'Добави детето в група или към тренировка от „График".');
+    if (!list.length) return emptyState(I.cal, 'Няма тренировки', 'Добави го в група или го запиши по име в тренировка от „График".');
     const today = todayStr();
     const upcoming = list.filter(h => h.sessionDate > today).reverse();
     const past = list.filter(h => h.sessionDate <= today);
@@ -292,7 +307,7 @@
   async function progressTab(c) {
     const list = await API.childProgress(c.id) || [];
     const add = `<button class="btn btn-primary btn-sm" id="addProg" style="margin-bottom:16px">${I.plus} Нова карта за напредък</button>`;
-    if (!list.length) return add + emptyState(I.chart, 'Няма карти за напредък', 'Попълвай карта веднъж на 2–3 месеца — родителят вижда растежа.');
+    if (!list.length) return add + emptyState(I.chart, 'Няма карти за напредък', 'Попълвай карта веднъж на 2–3 месеца — растежът се вижда в профила.');
     const cards = list.map((p, i) => {
       const prev = list[i + 1] || null;
       const arrow = (v, pv) => (v != null && pv != null && v > pv) ? `<span class="up-arrow" title="Подобрение">${I.up}</span>` : '';
@@ -334,7 +349,7 @@
       <div class="grid-2">${rangePick('Сила', 'p_ps', last?.physStrength)}${rangePick('Гъвкавост', 'p_pf', last?.physFlexibility)}${rangePick('Издръжливост', 'p_pe', last?.physEndurance)}${rangePick('Координация', 'p_pc', last?.physCoordination)}</div>
       <h4 class="form-h">Умения и поведение <span class="subtle">(1–5)</span></h4>
       <div class="grid-2">${ratePick('Скокове/атлетика', 'p_jump', last?.jumpsAthletics)}${ratePick('Баланс/координация', 'p_bal', last?.balanceCoordination)}${ratePick('Сила/издръжливост', 'p_se', last?.strengthEndurance)}${ratePick('Работа в екип', 'p_tw', last?.teamwork)}${ratePick('Дисциплина', 'p_di', last?.discipline)}${ratePick('Мотивация', 'p_mo', last?.motivation)}${ratePick('Концентрация', 'p_co', last?.concentration)}</div>
-      ${area('Цели за следващия период (вижда ги родителят)', 'p_goals', last?.nextGoals)}${area('Бележки само за треньорите', 'p_notes', '')}`,
+      ${area('Цели за следващия период (виждат се в профила)', 'p_goals', last?.nextGoals)}${area('Бележки само за треньорите', 'p_notes', '')}`,
       footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="p_save">${I.check} Запази</button>` });
     $$('#modal-host input[type=range]').forEach(r => r.oninput = () => { $('#' + r.id + '_o').textContent = r.value + '%'; });
     $$('.ratepick').forEach(rp => {
@@ -376,7 +391,7 @@
     });
   }
 
-  // Награда за едно или няколко деца наведнъж
+  // Награда за един или няколко плувци наведнъж
   async function bulkAward(preselect = [], after) {
     let boot;
     try { boot = await API.getBoot(); } catch (e) { return err(e); }
@@ -403,11 +418,11 @@
     });
     count();
     $('#a_save').onclick = async (ev) => {
-      if (!sel.size) return toast('Избери поне едно дете', 'err');
+      if (!sel.size) return toast('Избери поне един плувец', 'err');
       busy(ev.currentTarget, true, '…');
       try {
         const r = await API.award({ childIds: [...sel], achievementId: ach, awardedDate: $('#a_date').value, note: $('#a_note').value.trim() || null });
-        toast(r.count > 1 ? `🎉 Наградени ${r.count} деца` : 'Награден! 🎉', 'ok'); closeModal(); if (after) after();
+        toast(r.count > 1 ? `🎉 Наградени ${r.count} плувци` : 'Награден! 🎉', 'ok'); closeModal(); if (after) after();
       } catch (e) { busy(ev.currentTarget, false); err(e); }
     };
   }
@@ -468,17 +483,22 @@
     };
   }
 
-  /* ---------- Форма за дете ---------- */
+  /* ---------- Форма за картон (дете или възрастен) ---------- */
   async function childForm(c, preset = {}, onCreated) {
     let boot = null;
     try { boot = await API.getBoot(); } catch {}
     const groups = boot?.groups || [];
     const genderOpts = ['<option value="">—</option>', ...GENDERS.map(g => `<option ${c?.gender === g ? 'selected' : ''}>${g}</option>`)].join('');
-    modal({ title: c ? 'Редакция на картон' : 'Ново дете', large: true, body: `
+    let adult = !!(c ? c.isAdult : preset.isAdult);
+    modal({ title: c ? 'Редакция на картон' : 'Нов плувец', large: true, body: `
+      <div class="typepick" id="c_type">
+        <button type="button" class="${adult ? '' : 'active'}" data-a="0">🧒 Дете</button>
+        <button type="button" class="${adult ? 'active' : ''}" data-a="1">🧑 Възрастен</button>
+      </div>
       <div class="form-section">
-        <div class="form-section-title">${I.kids} Детето</div>
+        <div class="form-section-title">${I.kids} <span data-lbl="who">Детето</span></div>
         <div class="grid-2">${field('Име *', 'c_fn', c?.firstName ?? preset.firstName, 'text', '', 'autocomplete="off"')}${field('Фамилия', 'c_ln', c?.lastName, 'text', '', 'autocomplete="off"')}</div>
-        <div class="grid-2">${field('Дата на раждане *', 'c_bd', toDateInput(c?.birthDate), 'date')}
+        <div class="grid-2">${field('Дата на раждане', 'c_bd', toDateInput(c?.birthDate), 'date', 'нужна за входа с код')}
           <div class="field"><label for="c_g">Пол</label><select class="select" id="c_g">${genderOpts}</select></div></div>
         <div class="grid-2">
           <div class="field"><label for="c_grp">Група</label><select class="select" id="c_grp"><option value="">— без група —</option>${groups.map(g => `<option value="${g.id}" ${c?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
@@ -486,11 +506,11 @@
         ${field('Как пише в Google Calendar', 'c_cal', c?.calendarName ?? preset.calendarName, 'text', 'напр. Йоан, Йоан П. — за да се разпознава')}
       </div>
       <div class="form-section">
-        <div class="form-section-title">${I.phone} Родител и спешна връзка</div>
-        <div class="grid-2">${field('Име на родителя', 'c_pn', c?.parentName, 'text', 'напр. Мария Петрова')}${field('Телефон на родителя', 'c_pp', c?.parentPhone, 'tel', '08XX XXX XXX', 'inputmode="tel"')}</div>
+        <div class="form-section-title">${I.phone} <span data-lbl="contact">Родител и спешна връзка</span></div>
+        <div class="grid-2"><div data-kidonly>${field('Име на родителя', 'c_pn', c?.parentName, 'text', 'напр. Мария Петрова')}</div>${field('Телефон на родителя', 'c_pp', c?.parentPhone, 'tel', '08XX XXX XXX', 'inputmode="tel"')}</div>
         ${field('Имейл на родителя', 'c_pe', c?.parentEmail, 'email', 'за известия и достъп', 'inputmode="email"')}
-        <div class="grid-2">${field('Спешен контакт (друг човек)', 'c_en', c?.emergencyName, 'text', 'напр. баба Иванка')}${field('Спешен телефон', 'c_ep', c?.emergencyPhone, 'tel', '', 'inputmode="tel"')}</div>
-        <label class="switch"><input type="checkbox" id="c_notify" ${c?.notifyParent === false ? '' : 'checked'}><span></span>Имейл до родителя при награда, ново умение и седмично обобщение</label>
+        <div class="grid-2" data-kidonly>${field('Спешен контакт (друг човек)', 'c_en', c?.emergencyName, 'text', 'напр. баба Иванка')}${field('Спешен телефон', 'c_ep', c?.emergencyPhone, 'tel', '', 'inputmode="tel"')}</div>
+        <label class="switch"><input type="checkbox" id="c_notify" ${c?.notifyParent === false ? '' : 'checked'}><span></span><span data-lbl="notify">Имейл до родителя при награда, ново умение и седмично обобщение</span></label>
       </div>
       <div class="form-section">
         <div class="form-section-title">${I.heart} Здраве</div>
@@ -504,23 +524,41 @@
         ${area('Цели', 'c_goals', c?.goals, 'напр. да плува 25 м без помощ до лятото')}
         ${area('Бележки за треньорите', 'c_notes', c?.notes)}
       </div>
-      <label class="switch"><input type="checkbox" id="c_consent" ${c?.consentDate ? 'checked' : ''}><span></span>Родителят е дал съгласие данните (вкл. здравните) да се пазят тук${c?.consentDate ? ` · ${fmtDate(c.consentDate)}` : ''}</label>`,
+      <label class="switch"><input type="checkbox" id="c_consent" ${c?.consentDate ? 'checked' : ''}><span></span><span data-lbl="consent">Родителят е дал съгласие данните (вкл. здравните) да се пазят тук</span>${c?.consentDate ? ` · ${fmtDate(c.consentDate)}` : ''}</label>`,
       footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="c_save">${I.check} Запази</button>` });
     if (!c) setTimeout(() => $('#c_fn')?.focus(), 250);
 
+    // Дете / възрастен — сменя само текстовете; полетата в таблицата са същите
+    const L = {
+      who: ['Детето', 'Плувецът'], contact: ['Родител и спешна връзка', 'Контакти (по желание)'],
+      notify: ['Имейл до родителя при награда, ново умение и седмично обобщение', 'Имейл при награда, ново умение и седмично обобщение'],
+      consent: ['Родителят е дал съгласие данните (вкл. здравните) да се пазят тук', 'Плувецът е дал съгласие данните (вкл. здравните) да се пазят тук'],
+    };
+    const lbl = (id, kid, ad) => { const el = $(`label[for="${id}"]`); if (el) el.textContent = adult ? ad : kid; };
+    const paintType = () => {
+      $$('#c_type button').forEach(b => b.classList.toggle('active', (b.dataset.a === '1') === adult));
+      $$('#modal-host [data-lbl]').forEach(el => el.textContent = L[el.dataset.lbl][adult ? 1 : 0]);
+      $$('#modal-host [data-kidonly]').forEach(el => el.hidden = adult);
+      lbl('c_pp', 'Телефон на родителя', 'Телефон');
+      lbl('c_pe', 'Имейл на родителя', 'Имейл');
+    };
+    $$('#c_type button').forEach(b => b.onclick = () => { adult = b.dataset.a === '1'; paintType(); });
+    paintType();
+
     $('#c_save').onclick = async (ev) => {
       const v = (id) => $('#' + id).value.trim() || null;
-      const dto = { firstName: v('c_fn'), lastName: v('c_ln') || '', birthDate: $('#c_bd').value, gender: v('c_g'), groupId: v('c_grp'),
+      const dto = { firstName: v('c_fn'), lastName: v('c_ln') || '', birthDate: $('#c_bd').value || null, isAdult: adult, gender: v('c_g'), groupId: v('c_grp'),
         trainingStartDate: $('#c_start').value || null, parentName: v('c_pn'), parentPhone: v('c_pp'), parentEmail: v('c_pe'),
         emergencyName: v('c_en'), emergencyPhone: v('c_ep'), notifyParent: $('#c_notify').checked,
         medicalAlert: v('c_alert'), diagnosis: v('c_diag'), specialNeeds: v('c_sop'), allergiesMedical: v('c_alg'),
         medicalUntil: $('#c_med').value || null, objectiveCondition: v('c_obj'), goals: v('c_goals'), notes: v('c_notes'), calendarName: v('c_cal') };
       const consent = $('#c_consent').checked;
       dto.consentDate = consent ? (c?.consentDate || todayStr()) : null;
-      if (!dto.firstName || !dto.birthDate) return toast('Име и дата на раждане са задължителни', 'err');
-      if (dto.parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.parentEmail)) return toast('Провери имейла на родителя', 'err');
+      if (!dto.firstName) return toast('Името е задължително', 'err');
+      if (adult) { dto.parentName = null; dto.emergencyName = null; dto.emergencyPhone = null; }
+      if (dto.parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.parentEmail)) return toast('Провери имейла', 'err');
       const btn = $('#c_save');
-      if (!dto.parentPhone && !dto.emergencyPhone && !btn.dataset.ok) {
+      if (!adult && !dto.parentPhone && !dto.emergencyPhone && !btn.dataset.ok) {
         btn.dataset.ok = '1'; btn.innerHTML = `${I.check} Запази без телефон`;
         $('#c_pp').focus();
         return toast('Няма телефон за спешна връзка — добави или натисни пак „Запази"', 'err');
@@ -529,7 +567,7 @@
       try {
         if (c) { await API.updateChild(c.id, dto); toast('Обновено', 'ok'); closeModal(); S.render(); }
         else {
-          const nc = await API.createChild(dto); toast('Добавено! Код за родителя: ' + (nc.parentCode || ''), 'ok'); closeModal();
+          const nc = await API.createChild(dto); toast('Добавено! Код за достъп: ' + (nc.parentCode || ''), 'ok'); closeModal();
           if (onCreated) { await API.refreshBoot().catch(() => {}); onCreated(nc); } else navigate('/app/child/' + nc.id);
         }
       } catch (e) { busy(btn, false); err(e); }
@@ -541,9 +579,9 @@
     if (!guard()) return;
     const u = API.getUser() || {};
     const tiles = [
-      ['/app/groups', I.layers, 'Групи', 'Деца по групи, дни и час. Тренировка за цялата група с един клик.'],
+      ['/app/groups', I.layers, 'Групи', 'Плувци по групи, дни и час. Тренировка за цялата група с един клик.'],
       ['/app/attendance', I.chart, 'Посещаемост', 'Месечна таблица — кой идва редовно и кой изпуска.'],
-      ['/app/skills', I.ladder, 'Умения и нива', 'Стълбата от умения, точки и нива за децата.'],
+      ['/app/skills', I.ladder, 'Умения и нива', 'Стълбата от умения, точки и нива за всеки плувец.'],
       ['/app/achievements', I.trophy, 'Награди', 'Медали, тениски, грамоти — ти ги измисляш.'],
       ['#gcal', I.cal, 'Google Calendar', 'Тренировките автоматично в календара ти.'],
       ['/app/team', I.team, 'Отбор и покани', 'Треньори, покана с линк и план.'],
@@ -559,7 +597,7 @@
       const b = await API.getBoot();
       const n = b.notify || {};
       $('#notifyCard').innerHTML = `<div class="card-section-title"><span class="ico">${I.bell}</span>Известия по имейл</div>
-        ${n.enabled ? `<p>✅ Включени · изпращат се от <b>${esc(n.sender)}</b>. Родителите получават имейл при награда, ново умение, състезание и седмично обобщение в неделя. Треньорите — сутрешни сигнали за отсъствия, медицински и рождени дни.</p>`
+        ${n.enabled ? `<p>✅ Включени · изпращат се от <b>${esc(n.sender)}</b>. Плувците (или родителите им) получават имейл при награда, ново умение, състезание и седмично обобщение в неделя. Треньорите — сутрешни сигнали за отсъствия, медицински и рождени дни.</p>`
           : `<p>Изключени. За да ги включиш: в Google таблицата меню <b>SwimWithSmile → 3) Известия по имейл (Brevo)</b> и постави ключ от безплатен акаунт в <b>brevo.com</b> (300 имейла на ден).</p>`}`;
     } catch {}
   });
@@ -579,14 +617,14 @@
     let boot; try { boot = await API.refreshBoot(); } catch (e) { return err(e); }
     const host = $('#groupList'); if (!host) return;
     const groups = boot.groups || [];
-    if (!groups.length) { host.innerHTML = emptyState(I.layers, 'Още няма групи', 'Групата пази децата, дните и часа — после правиш тренировка за всички с един клик.'); return; }
+    if (!groups.length) { host.innerHTML = emptyState(I.layers, 'Още няма групи', 'Групата пази плувците, дните и часа — после правиш тренировка за всички с един клик.'); return; }
     host.innerHTML = `<div class="grp-grid stagger">${groups.map(g => {
       const kids = (boot.children || []).filter(k => k.groupId === g.id);
       return `<button class="grp" data-g="${g.id}" style="--gc:${g.color}">
         <span class="grp-bar"></span>
         <b>${esc(g.name)}</b>
         <small>${g.days.length ? g.days.map(d => DOW[d - 1]).join(', ') : 'без фиксирани дни'}${g.time ? ' · ' + esc(g.time) : ''}${g.location ? ' · ' + esc(g.location) : ''}</small>
-        <span class="grp-kids">${kids.slice(0, 6).map(k => avatar(k.firstName, k.lastName, 'av-sm')).join('')}${kids.length > 6 ? `<em>+${kids.length - 6}</em>` : ''}${!kids.length ? '<em>няма деца</em>' : ''}</span>
+        <span class="grp-kids">${kids.slice(0, 6).map(k => avatar(k.firstName, k.lastName, 'av-sm')).join('')}${kids.length > 6 ? `<em>+${kids.length - 6}</em>` : ''}${!kids.length ? '<em>няма плувци</em>' : ''}</span>
       </button>`;
     }).join('')}</div>`;
     $$('.grp', host).forEach(b => b.onclick = () => groupForm(groups.find(g => g.id === b.dataset.g)));
@@ -604,8 +642,8 @@
       <div class="grid-2">${field('Час', 'g_time', g?.time, 'time')}
         <div class="field"><label for="g_dur">Продължителност</label><select class="select" id="g_dur">${[30, 45, 60, 75, 90].map(m => `<option value="${m}" ${(g?.durationMin || 45) === m ? 'selected' : ''}>${m} мин</option>`).join('')}</select></div></div>
       ${field('Място', 'g_loc', g?.location, 'text', 'напр. Басейн „Възраждане"')}
-      <div class="field"><label>Деца в групата <span class="subtle" id="g_n"></span></label>
-        <div class="pick-list" id="g_kids">${kids.map(k => `<label class="pick"><input type="checkbox" value="${k.id}" ${members.has(k.id) ? 'checked' : ''}><span>${esc(k.firstName)} ${esc(k.lastName)}${k.groupId && (!g || k.groupId !== g.id) ? ` <small class="subtle">(${esc((boot.groups.find(x => x.id === k.groupId) || {}).name || '')})</small>` : ''}</span></label>`).join('') || '<p class="subtle">Първо добави деца.</p>'}</div></div>`,
+      <div class="field"><label>Плувци в групата <span class="subtle" id="g_n"></span></label>
+        <div class="pick-list" id="g_kids">${kids.map(k => `<label class="pick"><input type="checkbox" value="${k.id}" ${members.has(k.id) ? 'checked' : ''}><span>${esc(k.firstName)} ${esc(k.lastName)}${k.groupId && (!g || k.groupId !== g.id) ? ` <small class="subtle">(${esc((boot.groups.find(x => x.id === k.groupId) || {}).name || '')})</small>` : ''}</span></label>`).join('') || '<p class="subtle">Първо добави плувци.</p>'}</div></div>`,
       footer: `${g ? `<button class="btn btn-danger" id="g_del">${I.trash}</button>` : ''}<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="g_save">${I.check} Запази</button>` });
     const paintC = () => $$('#g_col button').forEach(b => b.classList.toggle('on', b.dataset.c === color));
     $$('#g_col button').forEach(b => b.onclick = () => { color = b.dataset.c; paintC(); }); paintC();
@@ -623,7 +661,7 @@
     };
     const del = $('#g_del');
     if (del) del.onclick = async () => {
-      if (!await ask('Изтриване на група', 'Децата остават, само излизат от групата. Минали тренировки не се пипат.', 'Изтрий', true)) return;
+      if (!await ask('Изтриване на група', 'Плувците остават, само излизат от групата. Минали тренировки не се пипат.', 'Изтрий', true)) return;
       try { await API.deleteGroup(g.id); toast('Изтрита', 'ok'); drawGroups(); } catch (e) { err(e); }
     };
   }
@@ -634,7 +672,7 @@
     if (!guard()) return;
     shell('club', `
       <a href="#/app/club" class="btn btn-ghost btn-sm back">${I.chevL} Клуб</a>
-      <div class="page-head"><div><h1 class="pagettl">Посещаемост</h1><p class="subtle">Кой идва редовно — особено важно за децата със СОП</p></div></div>
+      <div class="page-head"><div><h1 class="pagettl">Посещаемост</h1><p class="subtle">Кой идва редовно — особено важно при СОП</p></div></div>
       <div class="card card-pad rise">
         <div class="cal-head">
           <button class="btn-icon btn-ghost" id="aPrev" aria-label="Предишен месец">${I.chevL}</button>
@@ -667,7 +705,7 @@
         <div><b>${r.rows.filter(x => x.pct != null && x.pct < 60).length}</b><small>под 60%</small></div>
       </div>
       <div class="att-wrap"><table class="att-tbl">
-        <thead><tr><th class="sticky">Дете</th>${r.sessions.map(s => `<th title="${esc(s.groupName || '')} ${fmtTime(s.startTime)}"><span>${parseD(s.sessionDate).getDate()}</span><small>${DOW[(parseD(s.sessionDate).getDay() + 6) % 7]}</small></th>`).join('')}<th>%</th></tr></thead>
+        <thead><tr><th class="sticky">Плувец</th>${r.sessions.map(s => `<th title="${esc(s.groupName || '')} ${fmtTime(s.startTime)}"><span>${parseD(s.sessionDate).getDate()}</span><small>${DOW[(parseD(s.sessionDate).getDay() + 6) % 7]}</small></th>`).join('')}<th>%</th></tr></thead>
         <tbody>${r.rows.map(x => `<tr>
           <th class="sticky"><a href="#/app/child/${x.childId}">${esc(x.name)}</a>${x.specialNeeds ? ' <span class="tag tag-sop">СОП</span>' : ''}</th>
           ${r.sessions.map(s => { const v = x.cells[s.id]; return `<td class="${v === true ? 'y' : v === false ? 'n' : v === null ? 'u' : ''}">${v === true ? '✓' : v === false ? '✗' : v === null ? (s.sessionDate <= today ? '?' : '·') : ''}</td>`; }).join('')}
@@ -681,7 +719,7 @@
     if (!guard()) return;
     shell('club', `
       <a href="#/app/club" class="btn btn-ghost btn-sm back">${I.chevL} Клуб</a>
-      <div class="page-head"><div><h1 class="pagettl">Умения и нива</h1><p class="subtle">Стълбата, по която се изкачва всяко дете</p></div>
+      <div class="page-head"><div><h1 class="pagettl">Умения и нива</h1><p class="subtle">Стълбата, по която се изкачва всеки плувец</p></div>
         <button class="btn btn-primary" id="newSkill">${I.plus}<span>Ново умение</span></button></div>
       <div id="skillList">${loading(3)}</div>`);
     $('#newSkill').onclick = () => skillForm();
@@ -731,7 +769,7 @@
     };
     const d = $('#sk_del');
     if (d) d.onclick = async () => {
-      if (!await ask('Изтриване', 'Умението ще изчезне и от картоните на децата (и точките за него).', 'Изтрий', true)) return;
+      if (!await ask('Изтриване', 'Умението ще изчезне и от картоните (и точките за него).', 'Изтрий', true)) return;
       try { await API.deleteSkill(s.id); toast('Изтрито', 'ok'); drawSkills(); } catch (e) { err(e); }
     };
   }
@@ -741,7 +779,7 @@
     if (!guard()) return;
     shell('club', `
       <a href="#/app/club" class="btn btn-ghost btn-sm back">${I.chevL} Клуб</a>
-      <div class="page-head"><div><h1 class="pagettl">Награди</h1><p class="subtle">Ти измисляш наградите — децата ги колекционират</p></div>
+      <div class="page-head"><div><h1 class="pagettl">Награди</h1><p class="subtle">Ти измисляш наградите — плувците ги колекционират</p></div>
         <div class="quick"><button class="btn btn-sun" id="giveAch">${I.trophy}<span>Дай награда</span></button><button class="btn btn-primary" id="newAch">${I.plus}<span>Нова</span></button></div></div>
       <div id="achList">${loading()}</div>`);
     $('#newAch').onclick = () => achDefForm();
@@ -764,7 +802,7 @@
         </div>`).join('')}</div>`;
       $$('[data-edit]').forEach(b => b.onclick = () => achDefForm(list.find(x => x.id === b.dataset.edit)));
       $$('[data-del]').forEach(b => b.onclick = async () => {
-        if (!await ask('Изтриване', 'Наградата ще изчезне и от всички деца, които са я получили.', 'Изтрий', true)) return;
+        if (!await ask('Изтриване', 'Наградата ще изчезне от всички, които са я получили.', 'Изтрий', true)) return;
         try { await API.deleteAchievement(b.dataset.del); toast('Изтрито', 'ok'); loadAchDefs(); } catch (e) { err(e); }
       });
     } catch (e) { err(e); }

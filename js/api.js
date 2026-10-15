@@ -102,7 +102,7 @@ const API = (() => {
   async function getBoot() { if (boot) { refreshBoot().catch(() => {}); return boot; } return refreshBoot(); }
 
   // Записи, след които трябва да обновим bootstrap
-  const BOOT_WRITES = /^(createChild|updateChild|deleteChild|createGroup|updateGroup|deleteGroup|createSkill|updateSkill|deleteSkill|createAchievement|updateAchievement|deleteAchievement|award|toggleSkill|markAttendance|upsertParticipant|createCompetition|removeAward|deleteCompetition|removeCoach|joinTeam|linkCalendarName)$/;
+  const BOOT_WRITES = /^(createChild|createSession|addPeopleToSession|updateChild|deleteChild|createGroup|updateGroup|deleteGroup|createSkill|updateSkill|deleteSkill|createAchievement|updateAchievement|deleteAchievement|award|toggleSkill|markAttendance|upsertParticipant|createCompetition|removeAward|deleteCompetition|removeCoach|joinTeam|linkCalendarName)$/;
   async function w(action, payload) {
     const r = await call(action, payload);
     if (BOOT_WRITES.test(action)) refreshBoot().catch(() => {});
@@ -164,7 +164,7 @@ const API = (() => {
     importCalendarEvents: (items) => call('importCalendarEvents', { items }),
     linkCalendarName: (childId, name) => w('linkCalendarName', { childId, name }),
     session: (id) => call('session', { id }),
-    createSession: (dto) => call('createSession', { data: dto }),
+    createSession: (dto) => w('createSession', { data: dto }),
     updateSession: (id, dto) => call('updateSession', { id, data: dto }),
     deleteSession: (id, series = false) => call('deleteSession', { id, series }),
     cancelSession: (id, cancelled = true) => call('cancelSession', { id, cancelled }),
@@ -172,6 +172,7 @@ const API = (() => {
     removeParticipant: (sid, cid) => call('removeParticipant', { sessionId: sid, childId: cid }),
     markAttendance: (sid, items) => w('markAttendance', { sessionId: sid, items }),
     addGroupToSession: (sid, groupId) => call('addGroupToSession', { sessionId: sid, groupId }),
+    addPeopleToSession: (sid, people, attended = false) => w('addPeopleToSession', { sessionId: sid, people, attended }),
     attendanceReport: (y, m, groupId) => call('attendanceReport', { year: y, month: m, groupId: groupId || null }),
 
     // ---- Напредък ----
