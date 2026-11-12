@@ -550,19 +550,29 @@
     try { await API.live('today', { date }, (d) => paintToday(d)); }
     catch (e) { return err(e); }
   }
+  /* Днес: тренировките от сайта И събитията от Google Calendar са в един списък по час.
+     Събитие от Google с разпознати деца изглежда като тренировка — ✓ / ✗ веднага;
+     при първото докосване то тихо се записва в графика (без бутон „Добави"). */
   function paintToday(d) {
     const host = $('#todaySessions'); if (!host) return;
-    if (!d.sessions.length) {
-      host.innerHTML = emptyState(I.sun, 'Днес няма тренировки', 'Почивен ден или още не са добавени.',
+    const cal = d.calendar || [];
+    cal.forEach(ev => _gcalById[ev.key] = ev);
+    const offs = cal.filter(ev => ev.kind === 'off');
+    const gev = cal.filter(ev => ev.kind !== 'off' && !ev.allDay);
+    const items = [...d.sessions.map(x => ({ t: x.startTime || '', s: x })), ...gev.map(x => ({ t: x.startTime || '', g: x }))]
+      .sort((a, b) => a.t.localeCompare(b.t));
+    const offHtml = offs.length ? `<div class="today-off">${offs.map(ev => `<span>🌴 <b>${esc(firstName(ev.coachName))}</b> — ${esc(ev.title)}</span>`).join('')}</div>` : '';
+    if (!items.length) {
+      host.innerHTML = offHtml + emptyState(I.sun, 'Днес няма тренировки', 'Нито в графика, нито в Google Calendar.',
         `<button class="btn btn-primary" id="emptyNew" style="margin-top:16px">${I.plus} Добави тренировка</button>`);
       $('#emptyNew').onclick = () => sessionForm(null, new Date());
     } else {
-      host.innerHTML = d.sessions.map(s => todaySessionCard(s)).join('');
+      host.innerHTML = offHtml + items.map(it => it.s ? todaySessionCard(it.s) : googleTodayCard(it.g)).join('');
       d.sessions.forEach(s => bindTodayCard(s));
+      gev.forEach(ev => bindGoogleCard(ev));
     }
     drawSide(d);
   }
-
   function todaySessionCard(s) {
     const cancelled = s.status === 'cancelled';
     const parts = s.participants || [];
@@ -602,51 +612,91 @@
     };
   }
 
+  const gKids = (ev) => (ev.children || []).map(c => ({ childId: c.id, childName: c.name, firstName: c.firstName || c.name, lastName: '', attended: null }));
+  function googleTodayCard(ev) {
+    const kids = gKids(ev), unknown = ev.unknownNames || [];
+    const dur = ev.durationMin || 45;
+    return `<section class="card tcard tcard-g rise" data-gk="${esc(ev.key)}" style="--gc:#2F6FED">
+      <header class="tcard-h">
+        <div class="tcard-time">${fmtTime(ev.startTime)}</div>
+        <div class="tcard-ttl">
+          <b>${esc(kids.length && !unknown.length ? kids.map(k => k.firstName).join(', ') : ev.title)}</b>
+          <small><span class="g-badge">Google</span> ${esc(firstName(ev.coachName))} · ${dur} мин</small>
+        </div>
+        <button class="btn-icon btn-ghost" data-gopen aria-label="Отвори">${I.chevR}</button>
+      </header>
+      ${kids.length ? `
+        <div class="tcard-bar"><span class="att-sum" data-sum>0 от ${kids.length} присъстват</span>
+          <button class="btn btn-soft btn-sm" data-allin>${I.check} Всички са тук</button></div>
+        <div class="klist">${kids.map(p => kidRow(p)).join('')}</div>` : ''}
+      ${unknown.length ? `<div class="tcard-empty"><p class="subtle">${unknown.map(n => `„${esc(n)}"`).join(', ')} — ${unknown.length > 1 ? 'кои са?' : 'кой е?'}</p>
+        <button class="btn btn-soft btn-sm" data-gwho>${I.user} Избери</button></div>` : ''}
+      ${!kids.length && !unknown.length ? `<div class="tcard-empty"><p class="subtle">Събитие от Google Calendar.</p></div>` : ''}
+    </section>`;
+  }
+  function bindGoogleCard(ev) {
+    const card = $(`.tcard-g[data-gk="${CSS.escape(ev.key)}"]`); if (!card) return;
+    let sid = null, pending = null;
+    // първото отбелязване записва събитието като тренировка (веднъж)
+    const ensure = () => sid ? Promise.resolve(sid) : (pending ||= API.importCalendarEvents([{ key: ev.key, date: ev.date, startTime: ev.startTime, durationMin: ev.durationMin,
+      location: ev.location, title: ev.title, childIds: ev.childIds || [], childId: ev.childId || null }]).then(r => { sid = r.items[0].sessionId; API.clearCache && API.clearCache(); return sid; }));
+    const sum = () => { const c = attCount(card); const el = $('[data-sum]', card); if (el) el.textContent = `${c.present} от ${c.total} присъстват`; };
+    bindAtt(card, async (cid, v) => { const id = await ensure(); await API.upsertParticipant(id, { childId: cid, attended: v }); });
+    card.addEventListener('attchange', sum);
+    bindAlerts(card);
+    const all = $('[data-allin]', card);
+    if (all) all.onclick = async () => {
+      const boxes = $$('[data-att]', card).filter(b => b.dataset.att === '');
+      boxes.forEach(b => paintAtt(b, '1')); sum(); busy(all, true);
+      try { const id = await ensure(); await API.markAttendance(id, boxes.map(b => ({ childId: b.closest('[data-cid]').dataset.cid, attended: true }))); toast('Отбелязано', 'ok'); all.remove(); }
+      catch (e) { boxes.forEach(b => paintAtt(b, '')); sum(); busy(all, false); err(e); }
+    };
+    const open = async (e) => {
+      if ((ev.unknownNames || []).length || !(ev.childIds || []).length) return gcalDetail(ev.key, drawToday);
+      const b = e.currentTarget; busy(b, true, '');
+      try { const id = await ensure(); sessionDetail(id, drawToday); } catch (x) { err(x); } finally { busy(b, false); }
+    };
+    $$('[data-gopen]', card).forEach(b => b.onclick = open);
+    const who = $('[data-gwho]', card); if (who) who.onclick = () => gcalDetail(ev.key, drawToday);
+  }
+
   function drawSide(d) {
     const side = $('#todaySide'); if (!side) return;
     const ico = { absence: '🚩', medical: '🩺', birthday: '🎂', contact: '📵' };
-    const alerts = d.alerts || [];
-    const cal = d.calendar || [];
-    cal.forEach(ev => _gcalById[ev.key] = ev);
-    const offs = cal.filter(ev => ev.kind === 'off');
-    const rest = cal.filter(ev => ev.kind !== 'off');
-    const calCard = cal.length ? `
-      <section class="card card-pad rise side-card">
-        <div class="card-section-title"><span class="ico">${I.cal}</span>Днес в Google Calendar</div>
-        ${offs.map(ev => `<div class="gc-off">🌴 <b>${esc(firstName(ev.coachName))}</b> · ${esc(ev.title)}${ev.allDay ? '' : ` <small>${fmtTime(ev.startTime)}–${fmtTime(ev.endTime)}</small>`}</div>`).join('')}
-        <div class="up-list">${rest.map(ev => `
-          <div class="gc-row ${ev.childId ? 'known' : ''}">
-            <span class="up-t">${fmtTime(ev.startTime)}</span>
-            <span class="gc-n">${ev.childName ? `<b>✓ ${esc(ev.childName)}</b>` : `<b>${esc(ev.title)}</b>`}<small>${esc(firstName(ev.coachName))}</small></span>
-            <button class="btn ${ev.childId ? 'btn-primary' : 'btn-soft'} btn-sm" data-gk="${esc(ev.key)}">${ev.childId ? 'Добави' : 'Кой е?'}</button>
-          </div>`).join('')}</div>
-        ${rest.filter(e => e.childId).length > 1 ? `<button class="btn btn-ghost btn-sm" id="gcTodayAll" style="margin-top:10px">${I.plus} Добави всички разпознати</button>` : ''}
-      </section>` : '';
-    side.innerHTML = calCard + `
-      <section class="card card-pad rise side-card">
+    // липсващите телефони — един ред, не по ред за всяко дете
+    const all = d.alerts || [];
+    const noPhone = all.filter(a => a.kind === 'contact');
+    const alerts = all.filter(a => a.kind !== 'contact');
+    // следващите дни: тренировки + събития от Google, по ред
+    (d.upcomingCal || []).forEach(ev => _gcalById[ev.key] = ev);
+    const up = [...(d.upcoming || []).map(s => ({ k: s.sessionDate + (s.startTime || ''), s })),
+      ...(d.upcomingCal || []).map(g => ({ k: g.date + (g.startTime || ''), g }))].sort((a, b) => a.k.localeCompare(b.k)).slice(0, 10);
+    side.innerHTML = `
+      ${alerts.length || noPhone.length ? `<section class="card card-pad rise side-card">
         <div class="card-section-title"><span class="ico">${I.bell}</span>Внимание</div>
-        ${alerts.length ? `<div class="alerts">${alerts.slice(0, 12).map(a => `
+        <div class="alerts">${alerts.slice(0, 8).map(a => `
           <a class="alrt alrt-${a.level}" href="#/app/child/${a.childId}"><span class="alrt-i">${ico[a.kind] || '•'}</span>
             <span><b>${esc(a.childName)}</b><small>${esc(a.text)}</small></span></a>`).join('')}
-          ${alerts.length > 12 ? `<p class="subtle" style="margin-top:8px">+${alerts.length - 12} още</p>` : ''}</div>`
-        : `<p class="subtle">Всичко е наред — няма пропуски, изтекли медицински или липсващи телефони. 👌</p>`}
-      </section>
+          ${noPhone.length ? `<details class="alrt-group"><summary><span class="alrt-i">📵</span><span><b>${noPhone.length} ${noPhone.length === 1 ? 'плувец' : 'плувци'} без телефон</b><small>за спешна връзка</small></span></summary>
+            <div class="alrt-names">${noPhone.map(a => `<a href="#/app/child/${a.childId}">${esc(a.childName)}</a>`).join('')}</div></details>` : ''}
+        </div>
+      </section>` : ''}
       <section class="card card-pad rise side-card">
         <div class="card-section-title"><span class="ico">${I.cal}</span>Следващите дни</div>
-        ${(d.upcoming || []).length ? `<div class="up-list">${d.upcoming.map(s => `
-          <button class="up-item" data-sid="${s.id}" style="--gc:${s.groupColor || '#1F73E0'}">
-            <span class="up-d">${esc(fmtShort(s.sessionDate))}</span><span class="up-t">${fmtTime(s.startTime)}</span>
-            <span class="up-n">${esc(s.groupName || s.title || 'Тренировка')} · ${esc(firstName(s.coachName))}${s.status === 'cancelled' ? ' · ❌' : ''}</span>
-            <span class="up-c">${s.participantCount || 0}</span></button>`).join('')}</div>`
-        : `<p class="subtle">Няма планирани тренировки за следващите 7 дни.</p>`}
+        ${up.length ? `<div class="up-list">${up.map(x => x.s ? `
+          <button class="up-item" data-sid="${x.s.id}" style="--gc:${x.s.groupColor || '#1F73E0'}">
+            <span class="up-d">${esc(fmtShort(x.s.sessionDate))}</span><span class="up-t">${fmtTime(x.s.startTime)}</span>
+            <span class="up-n">${esc(x.s.groupName || x.s.title || 'Тренировка')}${x.s.status === 'cancelled' ? ' · ❌' : ''}</span>
+            <span class="up-c">${x.s.participantCount || 0}</span></button>` : `
+          <button class="up-item up-g" data-gk="${esc(x.g.key)}" style="--gc:#2F6FED">
+            <span class="up-d">${esc(fmtShort(x.g.date))}</span><span class="up-t">${fmtTime(x.g.startTime)}</span>
+            <span class="up-n">${esc((x.g.unknownNames || []).length ? x.g.title : (x.g.childName || x.g.title))}</span>
+            <span class="g-badge">G</span></button>`).join('')}</div>`
+        : `<p class="subtle">Нищо за следващите 7 дни.</p>`}
         <a class="btn btn-ghost btn-sm" href="#/app/calendar" style="margin-top:12px">Целият график ${I.arrowR}</a>
       </section>`;
-    $$('.up-item', side).forEach(b => b.onclick = () => sessionDetail(b.dataset.sid, drawToday));
-    $$('[data-gk]', side).forEach(b => b.onclick = () => {
-      const ev = _gcalById[b.dataset.gk];
-      if (ev.childId) importEvents([ev], drawToday, b); else gcalDetail(ev.key, drawToday);
-    });
-    const all = $('#gcTodayAll'); if (all) all.onclick = () => importEvents(rest.filter(e => e.childId), drawToday, all);
+    $$('.up-item[data-sid]', side).forEach(b => b.onclick = () => sessionDetail(b.dataset.sid, drawToday));
+    $$('.up-item[data-gk]', side).forEach(b => b.onclick = () => gcalDetail(b.dataset.gk, drawToday));
   }
 
   /* ============================================================

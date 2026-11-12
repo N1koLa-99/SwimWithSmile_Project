@@ -951,3 +951,21 @@ details.more[open] { padding-bottom: 6px; }
 .w2-i.on i { background: var(--brand); border-color: var(--brand); }
 .w2-i.on i::after { content: ''; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
 .w2-act { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* ================= v50: „Днес" — Google и тренировките в един списък ================= */
+.g-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 6px; background: #E8F0FE; color: #1A5AD9; font-size: .68rem; font-weight: 800; letter-spacing: .02em; vertical-align: 1px; }
+.tcard-g { border-left: 0; }
+.tcard-g .tcard-time { color: #1A5AD9; }
+.today-off { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.today-off span { padding: 8px 12px; border-radius: 12px; background: #FFF4DC; color: #7A4B00; font-size: .9rem; }
+.alrt-group { border-radius: 14px; background: #F4F7FC; }
+.alrt-group > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; }
+.alrt-group > summary::-webkit-details-marker { display: none; }
+.alrt-group > summary > span:last-child { display: grid; }
+.alrt-group > summary small { color: var(--muted); }
+.alrt-group > summary::after { content: '›'; margin-left: auto; font-size: 1.3rem; color: var(--muted); transition: transform .2s; }
+.alrt-group[open] > summary::after { transform: rotate(90deg); }
+.alrt-names { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 12px 44px; }
+.alrt-names a { padding: 5px 10px; border-radius: 99px; background: #fff; border: 1px solid var(--sky-100); font-size: .85rem; font-weight: 600; color: var(--ink-2); }
+.alrt-names a:hover { border-color: var(--brand); color: var(--brand); }
+.up-item .g-badge { margin-left: auto; }

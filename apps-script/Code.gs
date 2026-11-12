@@ -2152,13 +2152,16 @@ function actToday_(p) {
     .sort(function (a, b) { return (a.sessionDate + a.startTime).localeCompare(b.sessionDate + b.startTime); })
     .slice(0, 8);
 
+  // Google Calendar: днес + следващите 7 дни (още не внесените като тренировки)
   var d0 = parseDate_(date); d0.setHours(0, 0, 0, 0);
-  var calendar = [];
+  var calendar = [], upcomingCal = [];
   try {
-    calendar = annotateEvents_(readCalendar_(p._teamId, d0, new Date(d0.getTime() + 86400000), !!p.fresh), p._teamId)
+    var all = annotateEvents_(readCalendar_(p._teamId, d0, new Date(d0.getTime() + 8 * 86400000), !!p.fresh), p._teamId)
       .filter(function (e) { return !e.sessionId && (!e.allDay || e.kind === 'off'); });
+    calendar = all.filter(function (e) { return e.date === date || (e.kind === 'off' && e.date <= date && (e.endDate || e.date) >= date); });
+    upcomingCal = all.filter(function (e) { return e.date > date && e.date <= until && !e.allDay; }).slice(0, 12);
   } catch (e) { calendar = []; }
-  return D({ date: date, sessions: sessions, upcoming: upcoming, calendar: calendar, alerts: alertsFor_(p._teamId, date) });
+  return D({ date: date, sessions: sessions, upcoming: upcoming, calendar: calendar, upcomingCal: upcomingCal, alerts: alertsFor_(p._teamId, date) });
 }
 
 function alertsFor_(teamId, date) {
