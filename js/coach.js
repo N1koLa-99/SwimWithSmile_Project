@@ -132,7 +132,7 @@
           <div class="stat"><b>${st.streak || 0}</b><small>поредни идвания</small></div>
           <div class="stat"><b>${st.skills || 0}</b><small>умения</small></div>
           <div class="stat"><b>${st.awards || 0}</b><small>награди</small></div>
-          ${st.meters ? `<div class="stat"><b>${S.fmtM(st.meters)}</b><small>изплувани${st.meters30 ? ` · ${S.fmtM(st.meters30)} за 30 дни` : ''}</small></div>` : ''}
+          ${st.meters ? `<div class="stat" title="${st.meters30 ? S.fmtM(st.meters30) + ' за 30 дни' : ''}"><b>${S.fmtM(st.meters)}</b><small>изплувани</small></div>` : ''}
         </div>
       </section>
       ${child.medicalAlert ? `<div class="med-banner rise">${I.alert}<span><b>Внимание:</b> ${esc(child.medicalAlert)}</span></div>` : ''}
@@ -595,10 +595,10 @@
       ['/app/skills', I.ladder, 'Умения и нива', 'Стълбата от умения, точки и нива за всеки плувец.'],
       ['/app/achievements', I.trophy, 'Награди', 'Медали, тениски, грамоти — ти ги измисляш.'],
       ['#gcal', I.cal, 'Google Calendar', 'Тренировките автоматично в календара ти.'],
-      ['/app/team', I.team, 'Отбор и покани', 'Треньори, покана с линк и план.'],
+      ['/app/team', I.team, 'Отбор и покани', 'Треньори, покана с линк, басейн.'],
     ];
     shell('club', `
-      <div class="page-head"><div><div class="page-eyebrow">${esc(u.teamName || '')}</div><h1 class="pagettl">Клуб</h1></div></div>
+      <div class="page-head"><div><h1 class="pagettl">Клуб</h1></div></div>
       <div class="club-grid stagger">${tiles.map(([to, ico, t, d]) => `
         <a class="club-tile" href="${to.startsWith('#') ? '#/app/club' : '#' + to}" ${to === '#gcal' ? 'data-gcal' : ''}>
           <span class="club-ico">${ico}</span><b>${t}</b><small>${d}</small><span class="club-go">${I.arrowR}</span></a>`).join('')}</div>
@@ -607,9 +607,10 @@
     try {
       const b = await API.getBoot();
       const n = b.notify || {};
-      $('#notifyCard').innerHTML = `<div class="card-section-title"><span class="ico">${I.bell}</span>Известия по имейл</div>
-        ${n.enabled ? `<p>✅ Включени · изпращат се от <b>${esc(n.sender)}</b>. Плувците (или родителите им) получават имейл при награда, ново умение, състезание и седмично обобщение в неделя. Треньорите — сутрешни сигнали за отсъствия, медицински и рождени дни.</p>`
-          : `<p>Изключени. За да ги включиш: в Google таблицата меню <b>SwimWithSmile → 3) Известия по имейл (Brevo)</b> и постави ключ от безплатен акаунт в <b>brevo.com</b> (300 имейла на ден).</p>`}`;
+      const nc = $('#notifyCard');
+      if (!n.enabled) nc.remove();
+      else nc.innerHTML = `<div class="card-section-title"><span class="ico">${I.bell}</span>Известия по имейл</div>
+        <p>✅ Включени · от <b>${esc(n.sender)}</b>. Родителите получават имейл при награда, умение и състезание.</p>`;
     } catch {}
   });
 

@@ -355,6 +355,8 @@ function handle_(req) {
       case 'switchTeam':           return actSwitchTeam_(p);
       case 'createTeam':           return actCreateTeam_(p);
       case 'updateProfile':        return actUpdateProfile_(p);
+      case 'createDemo':           return actCreateDemo_(p);
+      case 'deleteDemo':           return actDeleteDemo_(p);
       case 'calendarSettings':     return actCalendarSettings_(p);
       case 'updateCalendarSettings': return actUpdateCalendarSettings_(p);
       case 'updateTeam':           return actUpdateTeam_(p);
@@ -656,6 +658,7 @@ function actJoinTeam_(p) {
 
 function actTeam_(p) {
   var t = findById_('Teams', p._teamId);
+  var hasDemo = !!demoState_(p._teamId);
   if (!t) return E(404, 'Отборът не е намерен.');
   var plan = planOf_(t);
   var members = activeCoaches_(t.id).map(function (c) {
@@ -666,7 +669,7 @@ function actTeam_(p) {
     id: t.id, name: t.name, plan: 'free', planName: plan.name,
     kids: kids, members: members, isOwner: p._role === 'owner',
     inviteCode: p._role === 'owner' ? t.inviteCode : null,
-    poolLength: num_(t.poolLength) || DEFAULT_POOL,
+    poolLength: num_(t.poolLength) || DEFAULT_POOL, hasDemo: hasDemo,
     calendarKeywords: kwText_(t)
   });
 }
@@ -2776,4 +2779,174 @@ function ageFromBd_(bd) {
   var a = n.getFullYear() - b.getFullYear();
   if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--;
   return a;
+}
+
+/* ============================================================
+   Примерни данни (за показване) — само собственикът.
+   Създава групи, плувци (деца и възрастни, със и без СОП), тренировки
+   за последните 5 седмици и следващите 2, присъствие, метри, умения,
+   награди, състезания и карти за напредък. „deleteDemo" ги маха.
+   ============================================================ */
+var DEMO_TAG = '(примерен плувец)';
+
+function demoState_(teamId) {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('DEMO_' + teamId) || 'null'); } catch (e) { return null; }
+}
+
+function actCreateDemo_(p) {
+  mustOwner_(p);
+  if (demoState_(p._teamId)) return E(400, 'Примерните данни вече са добавени.');
+  var team = findById_('Teams', p._teamId) || {};
+  if (!poolOk_(team.poolLength)) updateById_('Teams', p._teamId, { poolLength: '25' });
+  var pool = poolOk_(team.poolLength) || 25;
+  var now = new Date(), y = now.getFullYear();
+  var ymdOf = function (d) { return fmtDate_(d); };
+  var bd = function (age, mmdd) { return (y - age) + '-' + mmdd; };
+  var soonBd = function (age) { var d = addDays_(now, 3); return (d.getFullYear() - age) + '-' + pad2_(d.getMonth() + 1) + '-' + pad2_(d.getDate()); };
+
+  // --- групи ---
+  var G = [
+    { key: 'del', name: 'Делфини', color: '#1F73E0', days: [1, 3], time: '17:00', dur: 45, loc: 'Басейн Локомотив' },
+    { key: 'aku', name: 'Акули', color: '#12805a', days: [2, 4], time: '18:00', dur: 60, loc: 'Басейн Локомотив' },
+    { key: 'vaz', name: 'Възрастни', color: '#8B5CF6', days: [5], time: '19:30', dur: 60, loc: 'Басейн Локомотив' },
+    { key: 'sop', name: 'Индивидуални', color: '#F5883C', days: [6], time: '10:00', dur: 30, loc: 'Малкия басейн' }
+  ];
+  var groupRows = G.map(function (g) {
+    g.id = Utilities.getUuid();
+    return { id: g.id, name: g.name, color: g.color, location: g.loc, days: g.days.join(','), time: g.time + ':00',
+             durationMin: String(g.dur), isActive: 'TRUE', createdAt: nowIso_(), teamId: p._teamId };
+  });
+  appendObjects_('Groups', groupRows);
+  var gid = {}; G.forEach(function (g) { gid[g.key] = g.id; });
+
+  // --- плувци: [име, фамилия, рождена дата, пол, група, ниво(0-4 етапа умения), допълнителни полета] ---
+  var P = [
+    ['Йоан', 'Петров', bd(8, '04-12'), 'момче', 'sop', 4, { specialNeeds: 'Аутизъм — нужни са ясни правила и един и същ ред на тренировката', diagnosis: 'Разстройство от аутистичния спектър', goals: 'Да плува 10 м без помощ', parentName: 'Мила Петрова', parentPhone: '0888 123 401', emergencyName: 'Петър Петров', emergencyPhone: '0888 123 402' }],
+    ['Елена', 'Маринова', bd(9, '09-03'), 'момиче', 'sop', 6, { specialNeeds: 'Синдром на Даун — по-бавно темпо, много похвали', parentName: 'Ива Маринова', parentPhone: '0888 123 411', emergencyPhone: '0888 123 412', goals: 'Звездичка по гръб сама' }],
+    ['Калоян', 'Николов', bd(11, '01-25'), 'момче', 'sop', 7, { specialNeeds: 'ADHD — кратки задачи, чести почивки', parentName: 'Рая Николова', parentPhone: '0888 123 421', _absent: true }],
+    ['Мария', 'Георгиева', bd(9, '06-18'), 'момиче', 'del', 8, { parentName: 'Ани Георгиева', parentPhone: '0888 123 431', parentEmail: 'ani.g@example.com' }],
+    ['Алекс', 'Димитров', bd(7, '11-30'), 'момче', 'del', 3, { medicalAlert: 'Астма — инхалаторът е в синята чанта', allergiesMedical: 'Астма', parentName: 'Димитър Димитров', parentPhone: '0888 123 441' }],
+    ['Борис', 'Тодоров', soonBd(6), 'момче', 'del', 1, { parentName: 'Нели Тодорова' }],
+    ['Ева', 'Колева', bd(10, '02-14'), 'момиче', 'del', 11, { parentName: 'Яна Колева', parentPhone: '0888 123 461' }],
+    ['Виктор', 'Стоянов', bd(13, '05-07'), 'момче', 'aku', 17, { goals: 'Под 0:32 на 50 м свободен стил', parentName: 'Стоян Стоянов', parentPhone: '0888 123 471' }],
+    ['Сияна', 'Иванова', bd(12, '08-21'), 'момиче', 'aku', 14, { parentName: 'Тони Иванова', parentPhone: '0888 123 481' }],
+    ['Деница', 'Попова', bd(14, '03-02'), 'момиче', 'aku', 13, { parentName: 'Галя Попова', parentPhone: '0888 123 491', medicalUntil: ymdOf(addDays_(now, -5)) }],
+    ['Иван', 'Христов', bd(34, '10-10'), 'мъж', 'vaz', 2, { isAdult: 'TRUE', parentPhone: '0888 555 101', notes: 'Страх от дълбокото — започваме от плиткото' }],
+    ['Петя', 'Ангелова', bd(41, '07-29'), 'жена', 'vaz', 17, { isAdult: 'TRUE', parentPhone: '0888 555 102', goals: 'Триатлон — 1,5 км в открита вода' }],
+    ['Георги', 'Василев', bd(67, '12-01'), 'мъж', 'vaz', 9, { isAdult: 'TRUE', parentPhone: '0888 555 103', medicalAlert: 'След операция на коляно — без бруст крака', emergencyName: 'Мария Василева', emergencyPhone: '0888 555 104' }],
+    ['Радост', 'Илиева', bd(25, '04-04'), 'жена', 'vaz', 12, { isAdult: 'TRUE', parentPhone: '0888 555 105' }]
+  ];
+  var kids = P.map(function (k) {
+    var extra = k[6], row = { firstName: k[0], lastName: k[1], birthDate: k[2], gender: k[3], groupId: gid[k[4]],
+      notes: ((extra.notes ? extra.notes + ' ' : '') + DEMO_TAG).trim(), consentDate: ymdOf(addDays_(now, -40)), trainingStartDate: ymdOf(addDays_(now, -200)) };
+    Object.keys(extra).forEach(function (f) { if (f !== 'notes' && f.charAt(0) !== '_') row[f] = extra[f]; });
+    if (!row.isAdult) row.isAdult = 'FALSE';
+    row = newChildRow_(row, p._teamId);
+    row._g = k[4]; row._skills = k[5]; row._absent = !!extra._absent;
+    return row;
+  });
+  appendObjects_('Children', kids.map(function (k) { var o = {}; Object.keys(k).forEach(function (f) { if (f.charAt(0) !== '_') o[f] = k[f]; }); return o; }));
+
+  // --- тренировки: 5 седмици назад + 2 напред, по дните на групите ---
+  var sets = { 0: ['1x2', '2x2', '1x4'], 1: ['2x4', '4x2', '3x3'], 2: ['4x4', '2x6', '3x4'], 3: ['4x6, 2x4', '5x6', '4x8'], 4: ['4x8, 4x6', '6x8, 2x10', '10x6, 4x4'] };
+  var moods = ['много добро', 'добро', 'добро', 'неутрално', 'умора'];
+  var notesP = ['Браво! Днес доплува сама до въжето 💪', 'Чудесна тренировка, много старание!', 'Първи път без дъска — супер!', 'Днес беше уморен, но не се отказа 🙂'];
+  var sessions = [], parts = [], from = addDays_(now, -35), until = addDays_(now, 14), todayS = today_(), seed = 7;
+  var rnd = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  for (var d = from; d <= until; d = addDays_(d, 1)) {
+    var ds = ymdOf(d), dow = isoDow_(ds);
+    G.forEach(function (g) {
+      if (g.days.indexOf(dow) < 0) return;
+      var sid = Utilities.getUuid();
+      var cancelled = ds < todayS && rnd() < 0.04;
+      sessions.push({ id: sid, sessionDate: ds, startTime: g.time + ':00', coachId: p._coachId, location: g.loc, notes: '',
+        createdAt: nowIso_(), teamId: p._teamId, groupId: g.id, durationMin: String(g.dur), seriesId: 'demo-' + g.key,
+        status: cancelled ? 'cancelled' : '', poolLength: '' });
+      kids.filter(function (k) { return k._g === g.key; }).forEach(function (k) {
+        var past = ds < todayS, row = { id: Utilities.getUuid(), sessionId: sid, childId: k.id, attended: '', updatedAt: nowIso_() };
+        if (past && !cancelled) {
+          var daysAgo = Math.round((now - d) / 86400000);
+          var here = k._absent ? daysAgo > 12 && rnd() < 0.8 : rnd() < 0.86;
+          row.attended = here ? 'TRUE' : 'FALSE';
+          if (here) {
+            var stage = Math.min(4, Math.floor(k._skills / 4));
+            var opts = sets[stage]; row.sets = opts[Math.floor(rnd() * opts.length)];
+            row.mood = moods[Math.floor(rnd() * moods.length)];
+            if (rnd() < 0.18) row.parentNote = notesP[Math.floor(rnd() * notesP.length)];
+            if (rnd() < 0.12) row.dailyProgress = 'Подобри дишането настрани';
+          }
+        }
+        parts.push(row);
+      });
+    });
+  }
+  appendObjects_('Sessions', sessions);
+  appendObjects_('Participants', parts);
+
+  // --- умения ---
+  var skills = skillsOut_(p._teamId, false);
+  var cs = [];
+  kids.forEach(function (k) {
+    skills.slice(0, k._skills).forEach(function (s, i) {
+      cs.push({ id: Utilities.getUuid(), childId: k.id, skillId: s.id, achievedDate: ymdOf(addDays_(now, -150 + i * 8)), coachId: p._coachId, note: '', createdAt: nowIso_() });
+    });
+  });
+  appendObjects_('ChildSkills', cs);
+
+  // --- награди ---
+  var ach = inTeam_(readObjects_('Achievements'), p._teamId).filter(function (a) { return nb_(a.isActive); });
+  var byName = function (n) { return kids.filter(function (k) { return k.firstName === n; })[0]; };
+  var aw = [];
+  [['Ева', 0], ['Виктор', 1], ['Виктор', 2], ['Сияна', 0], ['Мария', 3], ['Петя', 2], ['Йоан', 0], ['Радост', 0]].forEach(function (x, i) {
+    var k = byName(x[0]), a = ach[x[1] % Math.max(1, ach.length)];
+    if (k && a) aw.push({ id: Utilities.getUuid(), childId: k.id, achievementId: a.id, awardedDate: ymdOf(addDays_(now, -3 - i * 4)), awardedBy: p._coachId, note: '', createdAt: nowIso_() });
+  });
+  appendObjects_('Awards', aw);
+
+  // --- състезания ---
+  var comp = [
+    ['Виктор', 'Купа Велико Търново', '50 м свободен стил', '0:33.48', 1, -20],
+    ['Виктор', 'Купа Велико Търново', '100 м свободен стил', '1:14.10', 2, -20],
+    ['Сияна', 'Купа Велико Търново', '50 м гръб', '0:41.92', 3, -20],
+    ['Деница', 'Коледен турнир Габрово', '50 м бруст', '0:46.30', 5, -60],
+    ['Петя', 'Мастърс София', '400 м свободен стил', '6:12.40', 2, -45]
+  ].map(function (c) {
+    var k = byName(c[0]);
+    return { id: Utilities.getUuid(), childId: k.id, eventDate: ymdOf(addDays_(now, c[5])), eventName: c[1], results: '', notes: '',
+      createdBy: p._coachId, createdAt: nowIso_(), discipline: c[2], timeText: c[3], place: String(c[4]), location: c[1].indexOf('Габрово') >= 0 ? 'Габрово' : (c[1].indexOf('София') >= 0 ? 'София' : 'Велико Търново') };
+  });
+  appendObjects_('Competitions', comp);
+
+  // --- карти за напредък ---
+  var prog = [];
+  [['Йоан', [2, 3, 2, 2, 3, 2, 3, 2, 3, 2, 4, 2], 'Да издишва под водата 5 пъти подред'], ['Мария', [4, 4, 3, 3, 4, 4, 3, 4, 4, 4, 5, 4], 'Плъзгане с дъска 10 м'], ['Виктор', [5, 5, 5, 5, 4, 5, 5, 5, 4, 5, 5, 5], 'Обръщане със салто']].forEach(function (x) {
+    var k = byName(x[0]), v = x[1];
+    prog.push({ id: Utilities.getUuid(), childId: k.id, coachId: p._coachId, assessmentDate: ymdOf(addDays_(now, -10)), periodLabel: 'Есен ' + y,
+      jumpsAthletics: String(v[0]), balanceCoordination: String(v[1]), strengthEndurance: String(v[2]), basicSkillsComment: '',
+      physStrength: String(v[3]), physFlexibility: String(v[4]), physEndurance: String(v[5]), physCoordination: String(v[6]),
+      teamwork: String(v[7]), discipline: String(v[8]), motivation: String(v[9]), concentration: String(v[10]),
+      nextGoals: x[2], coachNotes: '', createdAt: nowIso_() });
+  });
+  appendObjects_('Progress', prog);
+
+  PropertiesService.getScriptProperties().setProperty('DEMO_' + p._teamId, JSON.stringify({ groups: G.map(function (g) { return g.id; }), at: nowIso_() }));
+  return D({ children: kids.length, sessions: sessions.length, groups: G.length });
+}
+
+function actDeleteDemo_(p) {
+  mustOwner_(p);
+  var st = demoState_(p._teamId) || { groups: [] };
+  var kidIds = {};
+  inTeam_(readObjects_('Children'), p._teamId).forEach(function (c) { if (String(c.notes || '').indexOf(DEMO_TAG) >= 0) kidIds[c.id] = 1; });
+  var sessIds = {};
+  inTeam_(readObjects_('Sessions'), p._teamId).forEach(function (s) { if (String(s.seriesId || '').indexOf('demo-') === 0) sessIds[s.id] = 1; });
+  var byKid = function (r) { return kidIds[r.childId]; };
+  deleteWhere_('Participants', function (r) { return kidIds[r.childId] || sessIds[r.sessionId]; });
+  ['ChildSkills', 'Awards', 'Competitions', 'Progress'].forEach(function (t) { deleteWhere_(t, byKid); });
+  deleteWhere_('Sessions', function (s) { return sessIds[s.id]; });
+  deleteWhere_('Children', function (c) { return kidIds[c.id]; });
+  var gids = {}; (st.groups || []).forEach(function (g) { gids[g] = 1; });
+  deleteWhere_('Groups', function (g) { return gids[g.id]; });
+  PropertiesService.getScriptProperties().setProperty('DEMO_' + p._teamId, '');
+  return D({ deleted: Object.keys(kidIds).length });
 }

@@ -833,7 +833,7 @@ body.menu-open .menu-sheet nav button { translate: none; opacity: 1; }
   .plan-featured { order: -1; }
   .team-hero { grid-template-columns: auto minmax(0, 1fr); }
   .meters { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
-  .team-grid { grid-template-columns: 1fr; }
+  .team-grid { grid-template-columns: minmax(0, 1fr); }
   .plan-cards { grid-template-columns: 1fr; }
 
   .auth2 { grid-template-columns: 1fr; }
@@ -930,3 +930,6 @@ body.menu-open .menu-sheet nav button { translate: none; opacity: 1; }
 .free-list li { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--navy); }
 .free-list svg { width: 20px; height: 20px; color: var(--green); flex-shrink: 0; }
 @media (max-width: 860px) { .free-card { grid-template-columns: 1fr; } }
+
+.demo-card { margin-bottom: 28px; }
+.demo-card p { margin-bottom: 12px; }

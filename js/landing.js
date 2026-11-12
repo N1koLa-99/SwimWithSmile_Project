@@ -633,11 +633,11 @@
           </div>
         </aside>
         <main class="auth2-main">
-          <button class="gear-btn" id="cfgBtn" title="Настройки на връзката" aria-label="Настройки на връзката">${I.gear}</button>
+
           <div class="auth2-card ${wide ? 'wide' : ''}" data-reveal="up">${body}</div>
         </main>
       </div>`;
-    $('#cfgBtn').onclick = openConfig;
+
     onLeave(mountMotion(app));
     onLeave(waterMesh($('#authWater'), { horizon: .62 }));
   }
@@ -907,7 +907,7 @@
     if (!guard()) return;
     shell('team', `
       <div class="page-head">
-        <div><div class="page-eyebrow">Настройки</div><h1 class="pagettl">Отбор</h1></div>
+        <div><h1 class="pagettl">Отбор</h1></div>
       </div>
       <div id="teamView"><div class="skel" style="height:180px;margin-bottom:18px"></div><div class="skel" style="height:260px"></div></div>`);
     await drawTeam();
@@ -954,13 +954,13 @@
         <section class="card card-pad rise invite-card" style="animation-delay:.1s">
           <div class="card-section-title"><span class="ico">${I.share}</span>Покани колега</div>
           ${t.isOwner ? `
-            <p class="subtle" style="margin-bottom:14px">Изпрати линка на треньора, когото искаш в отбора. Той си прави профил и влиза директно.</p>
+            <p class="subtle" style="margin-bottom:14px">Прати линка на колега — влиза с него.</p>
             <div class="invite-box"><input class="input" readonly id="invLink" value="${esc(inviteLink(t.inviteCode))}" aria-label="Линк за покана"><button class="btn btn-soft" id="copyInv">${I.copy}<span class="hide-xs">Копирай</span></button></div>
             <div class="invite-actions">
               ${navigator.share ? `<button class="btn btn-sky btn-sm" id="shareInv">${I.share} Сподели</button>` : ''}
               <button class="btn btn-ghost btn-sm" id="regenInv">${I.refresh} Нов линк</button>
             </div>
-            <p class="note">Без лимит — покани колкото колеги искаш. Ако колегата вече има профил, влиза със същата парола.</p>`
+            `
           : `<p class="subtle">Само собственикът на отбора може да кани нови треньори.</p>`}
         </section>
       </div>
@@ -968,7 +968,7 @@
       <div class="team-grid">
         <section class="card card-pad rise" style="animation-delay:.15s">
           <div class="card-section-title"><span class="ico">🏊</span>Басейн</div>
-          <p class="subtle" style="margin-bottom:12px">Дължината на басейна, в който тренирате — по нея се смятат метрите („4x6" = 4 пъти по 6 дължини). За отделна тренировка може да се смени.</p>
+          <p class="subtle" style="margin-bottom:12px">По нея се смятат метрите: 4x6 = 4 пъти по 6 дължини.</p>
           <div class="pool-row">
             <input class="input" id="poolLen" type="number" min="5" max="100" step="0.5" inputmode="decimal" value="${t.poolLength || 25}" ${t.isOwner ? '' : 'disabled'} aria-label="Дължина на басейна в метри"><span>метра</span>
             ${t.isOwner ? `<button class="btn btn-primary btn-sm" id="poolSave">${I.check} Запази</button>` : ''}
@@ -982,7 +982,15 @@
             <button class="menu-row" id="teamNew">${I.plus}<span>Нов отбор</span>${I.chevR}</button>
           </div>
         </section>
-      </div>`;
+      </div>
+      ${t.isOwner ? `<section class="card card-pad rise demo-card">
+        <div class="card-section-title"><span class="ico">🧪</span>Примерни данни</div>
+        ${t.hasDemo
+          ? `<p class="subtle">Има 14 примерни плувци. Махни ги, когато започнеш.</p>
+             <button class="btn btn-ghost btn-sm" id="demoDel">${I.trash} Махни примерните</button>`
+          : `<p class="subtle">14 плувци, 4 групи и 7 седмици тренировки — за показване.</p>
+             <button class="btn btn-soft btn-sm" id="demoAdd">${I.plus} Добави примерни плувци</button>`}
+      </section>` : ''}`;
 
     const rn = $('#renameBtn');
     if (rn) rn.onclick = () => {
@@ -1019,6 +1027,15 @@
       try { const r = await API.switchTeam(b.dataset.switch); toast(`Ти си в „${r.teamName}"`, 'ok'); S.render(); } catch (e) { busy(b, false); err(e); }
     });
     const tn = $('#teamNew'); if (tn) tn.onclick = () => S.newTeamForm();
+    const da = $('#demoAdd'); if (da) da.onclick = async () => {
+      busy(da, true, 'Създаване…');
+      try { const r = await API.createDemo(); await API.refreshBoot().catch(() => {}); toast(`Готово: ${r.children} плувци, ${r.sessions} тренировки`, 'ok'); navigate('/app/today'); }
+      catch (e) { busy(da, false); err(e); }
+    };
+    const dd = $('#demoDel'); if (dd) dd.onclick = async () => {
+      if (!await S.ask('Махане на примерните', 'Ще изтрия примерните плувци, групите и тренировките им. Твоите данни остават.', 'Махни', true)) return drawTeam();
+      try { const r = await API.deleteDemo(); await API.refreshBoot().catch(() => {}); toast(`Махнати: ${r.deleted}`, 'ok'); drawTeam(); } catch (e) { err(e); }
+    };
     API.myTeams().then(list => { if (list.length !== teams.length && $('#teamView')) drawTeam(); }).catch(() => {});
   }
 })();

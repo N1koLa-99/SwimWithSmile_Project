@@ -184,7 +184,7 @@ body.modal-open { overflow: hidden; }
 .colpick { display: flex; gap: 8px; flex-wrap: wrap; }
 .colpick button { width: 36px; height: 36px; border-radius: 50%; background: var(--c); border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--sky-100); }
 .colpick button.on { box-shadow: 0 0 0 3px var(--c); transform: scale(1.08); }
-.pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; max-height: 280px; overflow: auto; padding: 2px; }
+.pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 6px; max-height: 280px; overflow: auto; padding: 2px; }
 .pick { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--paper); font-weight: 700; font-size: .88rem; color: var(--ink); cursor: pointer; }
 .pick input { width: 18px; height: 18px; accent-color: var(--brand); }
 .pick:has(input:checked) { background: var(--sky-100); }
@@ -207,7 +207,7 @@ body.modal-open { overflow: hidden; }
 .search { position: relative; flex: 1 1 260px; max-width: 380px; }
 .search svg { position: absolute; left: 14px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; color: var(--muted); }
 .search .input { padding-left: 42px; background: #fff; }
-.kid-grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.kid-grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 .kc { display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px; border-radius: 20px; background: #fff; box-shadow: var(--shadow-sm); border: 1px solid rgba(185,216,255,.45); transition: transform .18s var(--ease), box-shadow .2s; width: 100%; }
 .kc:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .kc-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
@@ -323,7 +323,7 @@ button.sk:hover { border-color: var(--brand-light); background: #fff; }
 .comp-act { display: flex; gap: 2px; }
 
 /* ---------- Клуб ---------- */
-.club-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.club-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 14px; }
 .club-tile { position: relative; display: grid; gap: 6px; padding: 20px; border-radius: 22px; background: #fff; box-shadow: var(--shadow-sm); border: 1px solid rgba(185,216,255,.45); transition: transform .18s var(--ease), box-shadow .2s; }
 .club-tile:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
 .club-ico { width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center; background: var(--sky-50); color: var(--brand); margin-bottom: 4px; }
@@ -334,7 +334,7 @@ button.sk:hover { border-color: var(--brand-light); background: #fff; }
 .club-go svg { width: 18px; height: 18px; }
 @media (max-width: 560px) { .club-grid { grid-template-columns: 1fr 1fr; gap: 10px; } .club-tile { padding: 14px; } .club-tile small { display: none; } .club-go { display: none; } }
 
-.grp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.grp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 14px; }
 .grp { --gc: var(--brand); position: relative; overflow: hidden; text-align: left; display: grid; gap: 6px; padding: 20px 20px 18px 24px; border-radius: 22px; background: #fff; box-shadow: var(--shadow-sm); border: 1px solid rgba(185,216,255,.45); transition: transform .18s; }
 .grp:hover { transform: translateY(-2px); }
 .grp-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--gc); }
@@ -375,7 +375,7 @@ button.sk:hover { border-color: var(--brand-light); background: #fff; }
 .ska small { font-weight: 800; color: var(--green); }
 .ska:hover { background: var(--sky-50); }
 .ska.off, .ach-def.off { opacity: .5; }
-.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 14px; }
 .ach-def { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
 .ach-ico.big { width: 64px; height: 64px; font-size: 2rem; }
 .ach-def-act { display: flex; gap: 6px; }
@@ -574,3 +574,28 @@ input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border: none; b
 /* Картон с метри: още една колона */
 .ph2-stats.has-m { grid-template-columns: minmax(240px, 1.8fr) repeat(5, minmax(0, 1fr)); }
 @media (max-width: 1100px) { .ph2-stats.has-m { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ph2-stats.has-m .lvl-card { grid-column: 1 / -1; } }
+
+/* ============================================================
+   v43 — адаптивност: телефон (320–430), таблет, лаптоп
+   ============================================================ */
+.kc-lvl small { white-space: nowrap; }
+.kc-meta .gtag { min-width: 0; }
+/* Тренировка: блокът с метрите отива на отделен ред на малък екран */
+.sd-hero { flex-wrap: wrap; }
+.sd-info { flex: 1 1 140px; }
+@media (max-width: 480px) {
+  .sd-m { flex: 1 0 100%; display: flex; align-items: baseline; gap: 8px; text-align: left; margin-left: 0; padding-top: 10px; border-top: 1px dashed color-mix(in srgb, var(--gc) 30%, #fff); }
+  .sd-m small:first-child { order: 3; margin-left: auto; }
+  .sd-time { font-size: 1.5rem; }
+}
+/* Долна лента на таблет — компактна, в средата */
+@media (min-width: 600px) and (max-width: 860px) {
+  .bottom-nav { left: 50% !important; right: auto !important; transform: translateX(-50%); width: min(460px, calc(100% - 32px)); }
+}
+/* Заглавие на страница: без излишни подзаглавия на телефон */
+@media (max-width: 600px) {
+  .page-head .subtle { display: none; }
+  .page-head .pagettl { margin: 0; }
+}
+.kid-grid2 > *, .grp-grid > *, .club-grid > *, .ach-grid > * { min-width: 0; }
+.kc-name { min-width: 0; overflow-wrap: anywhere; }

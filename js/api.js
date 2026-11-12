@@ -235,6 +235,8 @@ const API = (() => {
     team: () => swr('team'),
     updateTeam: (dto) => wr('updateTeam', { data: dto }),
     setPlan: (plan) => wr('setPlan', { plan }),
+    createDemo: () => w('createDemo', {}),
+    deleteDemo: () => w('deleteDemo', {}),
     regenerateInvite: () => wr('regenerateInvite'),
     removeCoach: (id) => w('removeCoach', { id }),
     patchUser(patch) { setUser({ ...(getUser() || {}), ...patch }); },
