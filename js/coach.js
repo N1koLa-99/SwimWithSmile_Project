@@ -133,6 +133,7 @@
           <div class="stat"><b>${st.skills || 0}</b><small>умения</small></div>
           <div class="stat"><b>${st.awards || 0}</b><small>награди</small></div>
           ${st.meters ? `<div class="stat" title="${st.meters30 ? S.fmtM(st.meters30) + ' за 30 дни' : ''}"><b>${S.fmtM(st.meters)}</b><small>изплувани</small></div>` : ''}
+          ${st.kcal ? `<div class="stat" title="приблизително"><b>≈ ${st.kcal >= 10000 ? Math.round(st.kcal / 1000) + 'k' : st.kcal}</b><small>kcal</small></div>` : ''}
         </div>
       </section>
       ${child.medicalAlert ? `<div class="med-banner rise">${I.alert}<span><b>Внимание:</b> ${esc(child.medicalAlert)}</span></div>` : ''}
@@ -298,7 +299,7 @@
     const row = h => `<button class="hrow ${h.status === 'cancelled' ? 'is-cancelled' : ''}" data-sid="${h.sessionId}">
       <span class="hrow-att ${h.attended === true ? 'y' : h.attended === false ? 'n' : ''}">${h.attended === true ? I.check : h.attended === false ? I.x : '·'}</span>
       <span class="hrow-main"><b>${esc(fmtShort(h.sessionDate))} · ${fmtTime(h.startTime)}</b>
-        <small>${esc(h.groupName || '')}${h.groupName ? ' · ' : ''}${esc(h.coachName)}${h.mood ? ' · ' + (MOOD_EMOJI[h.mood] || '') : ''}${h.meters ? ` · 🏊 ${S.fmtM(h.meters)}` : ''}</small>
+        <small>${esc(h.groupName || '')}${h.groupName ? ' · ' : ''}${esc(h.coachName)}${h.mood ? ' · ' + (MOOD_EMOJI[h.mood] || '') : ''}${h.meters ? ` · 🏊 ${S.fmtM(h.meters)}${h.kcal ? ` · 🔥 ${h.kcal}` : ''}` : ''}</small>
         ${h.swamWhat ? `<span class="hrow-t"><b>Плува:</b> ${esc(h.swamWhat)}</span>` : ''}
         ${h.dailyProgress ? `<span class="hrow-t"><b>Постигна:</b> ${esc(h.dailyProgress)}</span>` : ''}
         ${h.parentNote ? `<span class="hrow-t hrow-p">✉️ ${esc(h.parentNote)}</span>` : ''}</span>
@@ -501,41 +502,37 @@
     const groups = boot?.groups || [];
     const genderOpts = ['<option value="">—</option>', ...GENDERS.map(g => `<option ${c?.gender === g ? 'selected' : ''}>${g}</option>`)].join('');
     let adult = !!(c ? c.isAdult : preset.isAdult);
+    const filled = (...ks) => ks.some(k => c && c[k]);
     modal({ title: c ? 'Редакция на картон' : 'Нов плувец', large: true, body: `
       <div class="typepick" id="c_type">
         <button type="button" class="${adult ? '' : 'active'}" data-a="0">🧒 Дете</button>
         <button type="button" class="${adult ? 'active' : ''}" data-a="1">🧑 Възрастен</button>
       </div>
-      <div class="form-section">
-        <div class="form-section-title">${I.kids} <span data-lbl="who">Детето</span></div>
-        <div class="grid-2">${field('Име *', 'c_fn', c?.firstName ?? preset.firstName, 'text', '', 'autocomplete="off"')}${field('Фамилия', 'c_ln', c?.lastName, 'text', '', 'autocomplete="off"')}</div>
-        <div class="grid-2">${field('Дата на раждане', 'c_bd', toDateInput(c?.birthDate), 'date', 'нужна за входа с код')}
-          <div class="field"><label for="c_g">Пол</label><select class="select" id="c_g">${genderOpts}</select></div></div>
-        <div class="grid-2">
-          <div class="field"><label for="c_grp">Група</label><select class="select" id="c_grp"><option value="">— без група —</option>${groups.map(g => `<option value="${g.id}" ${c?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
-          ${field('Тренира от', 'c_start', toDateInput(c?.trainingStartDate || (c ? '' : new Date())), 'date')}</div>
-        ${field('Как пише в Google Calendar', 'c_cal', c?.calendarName ?? preset.calendarName, 'text', 'напр. Йоан, Йоан П. — за да се разпознава')}
-      </div>
-      <div class="form-section">
-        <div class="form-section-title">${I.phone} <span data-lbl="contact">Родител и спешна връзка</span></div>
-        <div class="grid-2"><div data-kidonly>${field('Име на родителя', 'c_pn', c?.parentName, 'text', 'напр. Мария Петрова')}</div>${field('Телефон на родителя', 'c_pp', c?.parentPhone, 'tel', '08XX XXX XXX', 'inputmode="tel"')}</div>
-        ${field('Имейл на родителя', 'c_pe', c?.parentEmail, 'email', 'за известия и достъп', 'inputmode="email"')}
+      <div class="grid-2 keep2">${field('Име *', 'c_fn', c?.firstName ?? preset.firstName, 'text', '', 'autocomplete="off" enterkeyhint="next"')}${field('Фамилия', 'c_ln', c?.lastName, 'text', '', 'autocomplete="off"')}</div>
+      <div class="grid-2 keep2">${field('Дата на раждане', 'c_bd', toDateInput(c?.birthDate), 'date')}
+        ${field('Тегло, кг', 'c_w', c?.weightKg, 'number', 'по желание', 'inputmode="decimal" min="8" max="250" step="0.5"')}</div>
+      <div class="grid-2">${groups.length ? `<div class="field"><label for="c_grp">Група</label><select class="select" id="c_grp"><option value="">— без група —</option>${groups.map(g => `<option value="${g.id}" ${c?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>` : '<input type="hidden" id="c_grp" value="">'}
+        ${field('Телефон на родителя', 'c_pp', c?.parentPhone, 'tel', 'за спешна връзка', 'inputmode="tel"')}</div>
+      ${field('⚠ Важно за здравето', 'c_alert', c?.medicalAlert, 'text', 'вижда се навсякъде · напр. епилепсия — винаги с треньор')}
+
+      <details class="more" ${filled('parentName', 'parentEmail', 'emergencyName', 'emergencyPhone') ? 'open' : ''}><summary>${I.phone} <span data-lbl="contact">Родител и спешна връзка</span></summary>
+        <div class="grid-2"><div data-kidonly>${field('Име на родителя', 'c_pn', c?.parentName, 'text', 'напр. Мария Петрова')}</div>${field('Имейл на родителя', 'c_pe', c?.parentEmail, 'email', 'за известия и достъп', 'inputmode="email"')}</div>
         <div class="grid-2" data-kidonly>${field('Спешен контакт (друг човек)', 'c_en', c?.emergencyName, 'text', 'напр. баба Иванка')}${field('Спешен телефон', 'c_ep', c?.emergencyPhone, 'tel', '', 'inputmode="tel"')}</div>
         <label class="switch"><input type="checkbox" id="c_notify" ${c?.notifyParent === false ? '' : 'checked'}><span></span><span data-lbl="notify">Имейл до родителя при награда, ново умение и седмично обобщение</span></label>
-      </div>
-      <div class="form-section">
-        <div class="form-section-title">${I.heart} Здраве</div>
-        ${field('⚠ Важно предупреждение (вижда се навсякъде)', 'c_alert', c?.medicalAlert, 'text', 'напр. Епилепсия — винаги с треньор във водата')}
+      </details>
+      <details class="more" ${filled('diagnosis', 'specialNeeds', 'allergiesMedical', 'medicalUntil', 'objectiveCondition') ? 'open' : ''}><summary>${I.heart} Здраве</summary>
         <div class="grid-2">${field('Диагноза', 'c_diag', c?.diagnosis)}${field('Специални потребности (СОП)', 'c_sop', c?.specialNeeds, 'text', 'напр. аутизъм, ДЦП… или празно')}</div>
         <div class="grid-2">${field('Алергии / лекарства', 'c_alg', c?.allergiesMedical)}${field('Медицинско валидно до', 'c_med', toDateInput(c?.medicalUntil), 'date')}</div>
         ${area('Обективно състояние', 'c_obj', c?.objectiveCondition)}
-      </div>
-      <div class="form-section">
-        <div class="form-section-title">${I.trophy} Цели и бележки</div>
+      </details>
+      <details class="more" ${filled('goals', 'notes', 'calendarName', 'gender') ? 'open' : ''}><summary>${I.trophy} Цели, бележки, още</summary>
         ${area('Цели', 'c_goals', c?.goals, 'напр. да плува 25 м без помощ до лятото')}
         ${area('Бележки за треньорите', 'c_notes', c?.notes)}
-      </div>
-      <label class="switch"><input type="checkbox" id="c_consent" ${c?.consentDate ? 'checked' : ''}><span></span><span data-lbl="consent">Родителят е дал съгласие данните (вкл. здравните) да се пазят тук</span>${c?.consentDate ? ` · ${fmtDate(c.consentDate)}` : ''}</label>`,
+        <div class="grid-2"><div class="field"><label for="c_g">Пол</label><select class="select" id="c_g">${genderOpts}</select></div>
+          ${field('Тренира от', 'c_start', toDateInput(c?.trainingStartDate || (c ? '' : new Date())), 'date')}</div>
+        ${field('Как пише в Google Calendar', 'c_cal', c?.calendarName ?? preset.calendarName, 'text', 'напр. Йоан, Йоан П. — за да се разпознава')}
+      </details>
+      <label class="switch" style="margin-top:14px"><input type="checkbox" id="c_consent" ${c?.consentDate ? 'checked' : ''}><span></span><span data-lbl="consent">Родителят е дал съгласие данните (вкл. здравните) да се пазят тук</span>${c?.consentDate ? ` · ${fmtDate(c.consentDate)}` : ''}</label>`,
       footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="c_save">${I.check} Запази</button>` });
     if (!c) setTimeout(() => $('#c_fn')?.focus(), 250);
 
@@ -562,7 +559,8 @@
         trainingStartDate: $('#c_start').value || null, parentName: v('c_pn'), parentPhone: v('c_pp'), parentEmail: v('c_pe'),
         emergencyName: v('c_en'), emergencyPhone: v('c_ep'), notifyParent: $('#c_notify').checked,
         medicalAlert: v('c_alert'), diagnosis: v('c_diag'), specialNeeds: v('c_sop'), allergiesMedical: v('c_alg'),
-        medicalUntil: $('#c_med').value || null, objectiveCondition: v('c_obj'), goals: v('c_goals'), notes: v('c_notes'), calendarName: v('c_cal') };
+        medicalUntil: $('#c_med').value || null, objectiveCondition: v('c_obj'), goals: v('c_goals'), notes: v('c_notes'), calendarName: v('c_cal'),
+        weightKg: v('c_w') };
       const consent = $('#c_consent').checked;
       dto.consentDate = consent ? (c?.consentDate || todayStr()) : null;
       if (!dto.firstName) return toast('Името е задължително', 'err');

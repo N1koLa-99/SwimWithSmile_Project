@@ -37,14 +37,14 @@ var TZ = 'Europe/Sofia';
 // Новите колони се добавят НАКРАЯ на всеки таб, за да не се разместят
 // съществуващите данни. ensureSchema_() ги добавя автоматично.
 var SCHEMA = {
-  Teams:        ['id','name','plan','inviteCode','ownerId','createdAt','icsKey','calendarKeywords','poolLength'],
+  Teams:        ['id','name','plan','inviteCode','ownerId','createdAt','icsKey','calendarKeywords','poolLength','calendarHide'],
   Coaches:      ['id','fullName','email','passwordHash','active','createdAt','teamId','role','calendarOn','icsUrl','username'],
   Children:     ['id','firstName','lastName','birthDate','gender','level','trainingStartDate',
                  'diagnosis','objectiveCondition','allergiesMedical','parentContact','emergencyContact',
                  'goals','notes','parentCode','photoUrl','isActive','createdAt','teamId',
                  'parentName','parentPhone','parentEmail','emergencyName','emergencyPhone',
                  'medicalAlert','specialNeeds','medicalUntil','consentDate','groupId','notifyParent','calendarName',
-                 'isAdult'],
+                 'isAdult','weightKg'],
   Groups:       ['id','name','color','location','days','time','durationMin','isActive','createdAt','teamId'],
   Sessions:     ['id','sessionDate','startTime','coachId','location','notes','createdAt','teamId',
                  'groupId','durationMin','seriesId','status','gcalKey','poolLength'],
@@ -64,7 +64,7 @@ var SCHEMA = {
 // Платформата е БЕЗПЛАТНА — без планове и лимити (старите стойности в колона plan се игнорират).
 var FREE = { name: 'Безплатен', seats: 1000, kids: 100000 };
 function planOf_(t) { return FREE; }
-var SCHEMA_VERSION = '8';
+var SCHEMA_VERSION = '10';
 
 // Google Calendar: кои събития се виждат в сайта
 var CAL_OFF_WORDS = ['почивк', 'почивен', 'почивни', 'отпуск', 'болничн', 'болен', 'болна', 'ваканц', 'не работя', 'отсъствам'];
@@ -786,6 +786,48 @@ function metersFor_(sets, pool) {
   var total = Math.round(r.lengths * (pool || DEFAULT_POOL) + r.meters);
   return total > 0 ? total : null;
 }
+// Калории (приблизително): MET на стила × кг × активно време.
+// Активното време е от метрите: ~3 мин на 100 м (деца и начинаещи), 2,5 мин за възрастни.
+var SWIM_MET = [
+  [/делф|бътерф|butter/, 9.5], [/бруст|жаба|breast/, 5.3], [/гръб|back/, 4.8],
+  [/крак|дъск|kick/, 4.0], [/ръц|pull/, 4.5], [/игр|свобод.*игр|плъзг|звезд/, 3.5], [/кроул|свобод|free/, 5.8]
+];
+function swimMet_(rest) {
+  var t = String(rest || '').toLowerCase();
+  for (var i = 0; i < SWIM_MET.length; i++) if (SWIM_MET[i][0].test(t)) return SWIM_MET[i][1];
+  return 5.8;
+}
+function ageYears_(bd) {
+  if (!bd) return null;
+  var d = new Date(nd_(bd)); if (isNaN(d.getTime())) return null;
+  return (Date.now() - d.getTime()) / 31557600000;
+}
+// Тегло: въведеното в картона или приблизително по възрастта
+function childKg_(c) {
+  c = c || {};
+  var w = Number(String(c.weightKg || '').replace(',', '.'));
+  if (w >= 8 && w <= 250) return w;
+  var a = ageYears_(c.birthDate);
+  if (a === null) return nb_(c.isAdult) ? 70 : 30;
+  if (a < 2) return 11;
+  if (a <= 10) return Math.round(2 * a + 8);
+  if (a < 18) return Math.round(3.5 * a - 7);
+  return 70;
+}
+function kcalFor_(sets, pool, c) {
+  if (!sets) return null;
+  var kg = childKg_(c), adult = nb_((c || {}).isAdult) || (ageYears_((c || {}).birthDate) || 0) >= 18;
+  var minPer100 = adult ? 2.5 : 3, kcal = 0;
+  String(sets).split(/[,;+\n]+/).forEach(function (tok) {
+    var t = tok.trim().toLowerCase(); if (!t) return;
+    var m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/) || t.match(/^()(\d{1,4})\s*(.*)$/);
+    if (!m) return;
+    var reps = m[1] ? Number(m[1]) : 1, n = Number(m[2]), rest = m[3] || '';
+    var meters = /^(м|m|метра|метр)(?![a-zа-я])/i.test(rest) ? reps * n : reps * n * (pool || DEFAULT_POOL);
+    kcal += swimMet_(rest) * kg * (meters / 100 * minPer100 / 60);
+  });
+  return kcal > 0 ? Math.round(kcal) : null;
+}
 function sessionPool_(s) {
   var t = findById_('Teams', s.teamId) || {};
   return poolOk_(s.poolLength) || poolOk_(t.poolLength) || DEFAULT_POOL;
@@ -832,6 +874,7 @@ function childPatch_(d, p) {
     var g = d.groupId ? findById_('Groups', d.groupId) : null;
     patch.groupId = (g && String(g.teamId) === p._teamId) ? g.id : '';
   }
+  if (d.weightKg !== undefined) { var w = Number(String(d.weightKg || '').replace(',', '.')); patch.weightKg = w >= 8 && w <= 250 ? String(Math.round(w * 10) / 10) : ''; }
   if (d.notifyParent !== undefined) patch.notifyParent = d.notifyParent ? 'TRUE' : 'FALSE';
   if (d.isAdult !== undefined) patch.isAdult = d.isAdult ? 'TRUE' : 'FALSE';
   if (d.isActive !== undefined) patch.isActive = d.isActive ? 'TRUE' : 'FALSE';
@@ -889,7 +932,7 @@ function actRegenerateCode_(p) {
 }
 
 function actChildHistory_(p) {
-  mustChild_(p.id, p._teamId);
+  var kid = mustChild_(p.id, p._teamId);
   var sessions = mapById_('Sessions');
   var coaches = coachMap_();
   var groups = mapById_('Groups');
@@ -904,7 +947,8 @@ function actChildHistory_(p) {
         groupName: (groups[s.groupId] || {}).name || null, status: nn_(s.status),
         attended: tri_(pt.attended), swamWhat: nn_(pt.swamWhat),
         dailyProgress: nn_(pt.dailyProgress), mood: nn_(pt.mood), parentNote: nn_(pt.parentNote),
-        sets: nn_(pt.sets), meters: s.id ? metersFor_(pt.sets, sessionPool_(s)) : null
+        sets: nn_(pt.sets), meters: s.id ? metersFor_(pt.sets, sessionPool_(s)) : null,
+        kcal: s.id ? kcalFor_(pt.sets, sessionPool_(s), kid) : null
       };
     })
     .filter(function (h) { return h.sessionDate; });
@@ -1109,18 +1153,24 @@ function sessOut_(s, coaches, groups, countBy) {
     coachId: nn_(s.coachId), coachName: (coaches[s.coachId] || {}).fullName || 'Треньор',
     location: nn_(s.location), notes: nn_(s.notes),
     groupId: nn_(s.groupId), groupName: g.name || null, groupColor: g.color || null,
-    title: s.gcalKey ? String(s.notes || '').replace(/^От Google Calendar: /, '') || null : null, fromCalendar: !!s.gcalKey,
+    title: s.gcalKey ? String(s.notes || '').replace(/^От Google Calendar: /, '') || null : (!g.name && c && c.names.length ? namesTitle_(c.names) : null), fromCalendar: !!s.gcalKey,
     durationMin: num_(s.durationMin) || num_(g.durationMin) || 45,
     seriesId: nn_(s.seriesId), status: nn_(s.status), poolLength: sessionPool_(s), poolOverride: poolOk_(s.poolLength),
     participantCount: c ? c.n : undefined, presentCount: c ? c.present : undefined, markedCount: c ? c.marked : undefined
   };
 }
 
+// Индивидуална тренировка (без група) се казва на детето/децата, не на треньора
+function namesTitle_(names) {
+  return names.length <= 2 ? names.join(', ') : names.slice(0, 2).join(', ') + ' +' + (names.length - 2);
+}
 function participantCounts_() {
-  var countBy = {};
+  var countBy = {}, kids = childMap_();
   readObjects_('Participants').forEach(function (pt) {
-    var c = countBy[pt.sessionId] || (countBy[pt.sessionId] = { n: 0, present: 0, marked: 0 });
+    var c = countBy[pt.sessionId] || (countBy[pt.sessionId] = { n: 0, present: 0, marked: 0, names: [] });
     c.n++;
+    var ch = kids[pt.childId];
+    if (ch && ch.firstName) c.names.push(String(ch.firstName).trim());
     var a = tri_(pt.attended);
     if (a !== null) c.marked++;
     if (a === true) c.present++;
@@ -1141,7 +1191,7 @@ function actSessions_(p) {
 function sessionFull_(s, teamId) {
   var coaches = coachMap_(), groups = mapById_('Groups'), children = childMap_();
   var stats = statsByChild_(teamId);
-  var out = sessOut_(s, coaches, groups, null);
+  var out = sessOut_(s, coaches, groups, participantCounts_());
   out.participants = readObjects_('Participants')
     .filter(function (pt) { return String(pt.sessionId) === String(s.id); })
     .map(function (pt) {
@@ -1153,11 +1203,14 @@ function sessionFull_(s, teamId) {
         absStreak: (stats[pt.childId] || {}).absStreak || 0,
         attended: tri_(pt.attended), swamWhat: nn_(pt.swamWhat),
         dailyProgress: nn_(pt.dailyProgress), mood: nn_(pt.mood), parentNote: nn_(pt.parentNote),
-        sets: nn_(pt.sets), meters: metersFor_(pt.sets, out.poolLength)
+        sets: nn_(pt.sets), meters: metersFor_(pt.sets, out.poolLength),
+        kcal: kcalFor_(pt.sets, out.poolLength, ch), kg: childKg_(ch), kgSet: !!ch.weightKg,
+        adult: nb_(ch.isAdult) || (ageYears_(ch.birthDate) || 0) >= 18
       };
     })
     .sort(function (a, b) { return a.childName.localeCompare(b.childName, 'bg'); });
   out.totalMeters = out.participants.reduce(function (a, x) { return a + (x.attended !== false && x.meters ? x.meters : 0); }, 0);
+  out.totalKcal = out.participants.reduce(function (a, x) { return a + (x.attended !== false && x.kcal ? x.kcal : 0); }, 0);
   return out;
 }
 
@@ -1203,6 +1256,9 @@ function actCreateSession_(p) {
   // Хората, записани по име. Нови имена → нов картон автоматично (преди тренировката, за да не остане половин запис)
   var res = resolvePeople_(d.people, p._teamId);
   if (res.error) return res.error;
+  // План (серии) за всички — по желание, напр. „4x6 кроул, 2x10 гръб"
+  var plan = String(d.sets || '').trim().slice(0, 300);
+  if (plan && parseSets_(plan).bad.length) return E(400, 'Не разбирам плана „' + parseSets_(plan).bad[0] + '". Пиши така: 4x6 кроул, 2x10 гръб');
   appendObjects_('Sessions', rows);
 
   // Плувците от групата се добавят автоматично (присъствието е „неотбелязано")
@@ -1216,7 +1272,7 @@ function actCreateSession_(p) {
   var parts = [];
   rows.forEach(function (s) {
     Object.keys(ids).forEach(function (cid) {
-      parts.push({ id: Utilities.getUuid(), sessionId: s.id, childId: cid, attended: '', updatedAt: nowIso_() });
+      parts.push({ id: Utilities.getUuid(), sessionId: s.id, childId: cid, attended: '', updatedAt: nowIso_(), sets: plan });
     });
   });
   if (parts.length) appendObjects_('Participants', parts);
@@ -1581,15 +1637,22 @@ function teamKeywords_(teamId) {
 }
 
 // Какво е събитието за сайта: 'training' | 'off' | 'event' | null (скрито)
-function calKind_(ev, kids, keywords) {
+// Показваме ВСИЧКО от Google Calendar. Скрито е само:
+//  — „#лично" / „#скрий" в заглавието или описанието;
+//  — събитие с дума от „Скрий събития с…" на отбора (напр. „гироси, зъболекар").
+function calKind_(ev, kids, hideWords) {
   var raw = (String(ev.title || '') + ' ' + String(ev.description || '')).toLowerCase();
   if (CAL_PRIVATE.some(function (t) { return raw.indexOf(t) >= 0; })) return { kind: null };
+  var title = String(ev.title || '').toLowerCase();
+  if (hideWords.some(function (w) { return title.indexOf(w) >= 0; })) return { kind: null };
   var child = matchChild_(ev.title, kids);
   if (child) return { kind: 'training', child: child };
-  var title = String(ev.title || '').toLowerCase();
   if (CAL_OFF_WORDS.some(function (w) { return title.indexOf(w) >= 0; })) return { kind: 'off' };
-  if (keywords.some(function (w) { return raw.indexOf(w) >= 0; })) return { kind: 'event' };
-  return { kind: null };
+  return { kind: 'event' };
+}
+function teamHideWords_(teamId) {
+  var t = findById_('Teams', teamId) || {};
+  return String(t.calendarHide || '').split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(function (x) { return x.length >= 2; });
 }
 
 function actCalendarEvents_(p) {
@@ -1608,12 +1671,12 @@ function actMonth_(p) {
 function annotateEvents_(events, teamId) {
   if (!events.length) return [];
   var kids = inTeam_(readObjects_('Children'), teamId).filter(function (c) { return nb_(c.isActive); });
-  var keywords = teamKeywords_(teamId);
+  var hideWords = teamHideWords_(teamId);
   var imported = {};
   inTeam_(readObjects_('Sessions'), teamId).forEach(function (s) { if (s.gcalKey) imported[s.gcalKey] = s.id; });
   var out = [];
   events.forEach(function (ev) {
-    var k = calKind_(ev, kids, keywords);
+    var k = calKind_(ev, kids, hideWords);
     if (!k.kind) return;
     ev.kind = k.kind;
     var c = k.child || null;
@@ -1641,7 +1704,7 @@ function actCalendarSettings_(p) {
   return D({
     shareWith: scriptOwnerEmail_(), myEmail: me.email, isScriptOwner: isScriptOwner_(me),
     calendarOn: coachCalOn_(me), status: status,
-    keywords: kwText_(t),
+    hideWords: String(t.calendarHide || ''),
     canEditKeywords: p._role === 'owner',
     coaches: activeCoaches_(p._teamId).map(function (c) { return { id: c.id, fullName: c.fullName, on: coachCalOn_(c) }; })
   });
@@ -1654,10 +1717,10 @@ function actUpdateCalendarSettings_(p) {
     // Един човек → един календар: включваме/изключваме във всички негови отбори
     coachRowsByEmail_(me.email).forEach(function (c) { updateById_('Coaches', c.id, { calendarOn: d.calendarOn ? 'TRUE' : 'FALSE' }); });
   }
-  if (d.keywords !== undefined) {
+  if (d.hideWords !== undefined) {
     mustOwner_(p);
-    var kw = String(d.keywords || '').split(',').map(function (x) { return x.trim(); }).filter(String).slice(0, 30).join(', ');
-    updateById_('Teams', p._teamId, { calendarKeywords: kw || ',' });
+    var kw = String(d.hideWords || '').split(',').map(function (x) { return x.trim(); }).filter(String).slice(0, 30).join(', ');
+    updateById_('Teams', p._teamId, { calendarHide: kw });
   }
   return D(null);
 }
@@ -1970,7 +2033,7 @@ function actUpdateCompetition_(p) {
 function emptyStats_() {
   return { points: 0, level: levelFor_(0), marked: 0, present: 0, pct: null, pct30: null,
            streak: 0, absStreak: 0, lastSeen: null, lastMarked: null, skills: 0, awards: 0, competitions: 0,
-           meters: 0, meters30: 0 };
+           meters: 0, meters30: 0, kcal: 0 };
 }
 
 function levelFor_(points) {
@@ -1993,7 +2056,8 @@ function statsByChild_(teamId) {
 function computeStats_(teamId) {
   var kids = inTeam_(readObjects_('Children'), teamId);
   var out = {};
-  kids.forEach(function (c) { out[c.id] = emptyStats_(); out[c.id]._hist = []; });
+  var kidById = {};
+  kids.forEach(function (c) { out[c.id] = emptyStats_(); out[c.id]._hist = []; kidById[c.id] = c; });
 
   var sessions = mapById_('Sessions');
   var todayS = today_(), d30 = fmtDate_(addDays_(new Date(), -30));
@@ -2003,7 +2067,7 @@ function computeStats_(teamId) {
     var a = tri_(pt.attended); if (a === null) return;
     var ds = nd_(s.sessionDate); if (ds > todayS) return;
     st._hist.push({ k: ds + nt_(s.startTime), a: a, d: ds });
-    if (a && pt.sets) { var mt = metersFor_(pt.sets, sessionPool_(s)); if (mt) { st.meters += mt; if (ds >= d30) st.meters30 += mt; } }
+    if (a && pt.sets) { var pl = sessionPool_(s), mt = metersFor_(pt.sets, pl); if (mt) { st.meters += mt; if (ds >= d30) st.meters30 += mt; st.kcal += kcalFor_(pt.sets, pl, kidById[pt.childId]) || 0; } }
   });
   var skillPts = {};
   inTeam_(readObjects_('Skills'), teamId).forEach(function (s) { skillPts[s.id] = num_(s.points) || 0; });
@@ -2120,7 +2184,8 @@ function actParentDashboard_(p) {
                groupName: (groups[s.groupId] || {}).name || null, location: nn_(s.location),
                attended: tri_(pt.attended), mood: nn_(pt.mood),
                dailyProgress: nn_(pt.dailyProgress), parentNote: nn_(pt.parentNote),
-               meters: s.id && tri_(pt.attended) === true ? metersFor_(pt.sets, sessionPool_(s)) : null };
+               meters: s.id && tri_(pt.attended) === true ? metersFor_(pt.sets, sessionPool_(s)) : null,
+               kcal: s.id && tri_(pt.attended) === true ? kcalFor_(pt.sets, sessionPool_(s), child) : null };
     })
     .filter(function (h) { return h.sessionDate; })
     .sort(function (a, b) { return (b.sessionDate + b.startTime).localeCompare(a.sessionDate + a.startTime); });
@@ -2349,7 +2414,7 @@ function childOut_(c) {
     emergencyName: nn_(c.emergencyName), emergencyPhone: nn_(c.emergencyPhone),
     medicalAlert: nn_(c.medicalAlert), specialNeeds: nn_(c.specialNeeds),
     medicalUntil: nd_(c.medicalUntil) || null, consentDate: nd_(c.consentDate) || null,
-    groupId: nn_(c.groupId), calendarName: nn_(c.calendarName), isAdult: nb_(c.isAdult), notifyParent: c.notifyParent === '' || c.notifyParent == null ? true : nb_(c.notifyParent)
+    groupId: nn_(c.groupId), calendarName: nn_(c.calendarName), isAdult: nb_(c.isAdult), weightKg: num_(c.weightKg) || null, notifyParent: c.notifyParent === '' || c.notifyParent == null ? true : nb_(c.notifyParent)
   };
 }
 
@@ -3141,7 +3206,7 @@ function actCalendarSettings_(p) {
     myEmail: me.email, calendarOn: coachCalOn_(me), icsUrl: me.icsUrl ? maskUrl_(me.icsUrl) : '',
     hasUrl: !!me.icsUrl, status: status, error: c && c.error ? c.error : null,
     lastSync: c && c.fetchedAt ? c.fetchedAt : null, eventCount: c && c.events ? c.events.length : 0,
-    keywords: kwText_(t), canEditKeywords: p._role === 'owner',
+    hideWords: String(t.calendarHide || ''), canEditKeywords: p._role === 'owner',
     coaches: activeCoaches_(p._teamId).map(function (x) { return { id: x.id, fullName: x.fullName, on: coachCalOn_(x) }; })
   });
 }
@@ -3164,10 +3229,10 @@ function actUpdateCalendarSettings_(p) {
     // Един човек → един календар във всички негови отбори
     coachRowsByEmail_(me.email).forEach(function (c) { updateById_('Coaches', c.id, patch); });
   }
-  if (d.keywords !== undefined) {
+  if (d.hideWords !== undefined) {
     mustOwner_(p);
-    var kw = String(d.keywords || '').split(',').map(function (x) { return x.trim(); }).filter(String).slice(0, 30).join(', ');
-    updateById_('Teams', p._teamId, { calendarKeywords: kw || ',' });
+    var kw = String(d.hideWords || '').split(',').map(function (x) { return x.trim(); }).filter(String).slice(0, 30).join(', ');
+    updateById_('Teams', p._teamId, { calendarHide: kw });
   }
   return D(null);
 }

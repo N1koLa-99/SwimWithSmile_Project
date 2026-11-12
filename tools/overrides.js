@@ -169,7 +169,7 @@ function actCalendarSettings_(p) {
     myEmail: me.email, calendarOn: coachCalOn_(me), icsUrl: me.icsUrl ? maskUrl_(me.icsUrl) : '',
     hasUrl: !!me.icsUrl, status: status, error: c && c.error ? c.error : null,
     lastSync: c && c.fetchedAt ? c.fetchedAt : null, eventCount: c && c.events ? c.events.length : 0,
-    keywords: kwText_(t), canEditKeywords: p._role === 'owner',
+    hideWords: String(t.calendarHide || ''), canEditKeywords: p._role === 'owner',
     coaches: activeCoaches_(p._teamId).map(function (x) { return { id: x.id, fullName: x.fullName, on: coachCalOn_(x) }; })
   });
 }
@@ -192,10 +192,10 @@ function actUpdateCalendarSettings_(p) {
     // Един човек → един календар във всички негови отбори
     coachRowsByEmail_(me.email).forEach(function (c) { updateById_('Coaches', c.id, patch); });
   }
-  if (d.keywords !== undefined) {
+  if (d.hideWords !== undefined) {
     mustOwner_(p);
-    var kw = String(d.keywords || '').split(',').map(function (x) { return x.trim(); }).filter(String).slice(0, 30).join(', ');
-    updateById_('Teams', p._teamId, { calendarKeywords: kw || ',' });
+    var kw = String(d.hideWords || '').split(',').map(function (x) { return x.trim(); }).filter(String).slice(0, 30).join(', ');
+    updateById_('Teams', p._teamId, { calendarHide: kw });
   }
   return D(null);
 }
