@@ -1627,10 +1627,55 @@ function calKind_(ev, kids, hideWords) {
   if (CAL_PRIVATE.some(function (t) { return raw.indexOf(t) >= 0; })) return { kind: null };
   var title = String(ev.title || '').toLowerCase();
   if (hideWords.some(function (w) { return title.indexOf(w) >= 0; })) return { kind: null };
-  var child = matchChild_(ev.title, kids);
-  if (child) return { kind: 'training', child: child };
+  var m = matchKids_(ev.title, kids);
+  if (m.kids.length) return { kind: 'training', kids: m.kids, unknown: m.unknown };
   if (CAL_OFF_WORDS.some(function (w) { return title.indexOf(w) >= 0; })) return { kind: 'off' };
-  return { kind: 'event' };
+  return { kind: 'event', unknown: ev.allDay ? [] : m.unknown };
+}
+
+/* Няколко деца в едно събитие: „Лора, Денис", „Стелян нов и Хриси", „Йоан, Близнаците".
+   Всяко име е отделно дете. „Близнаците" е псевдоним („Как пише в Google Calendar") на ДВА картона —
+   Давид и Самуил — и събитието се свързва и с двамата. */
+var NAME_NOISE = { 'нов': 1, 'нова': 1, 'нови': 1, 'тренировка': 1, 'тренировки': 1, 'плуване': 1, 'басейн': 1, 'индивидуална': 1,
+  'индивидуално': 1, 'урок': 1, 'час': 1, 'с': 1, 'за': 1, 'на': 1, 'в': 1, 'от': 1, 'до': 1 };
+function nameParts_(title) {
+  return String(title || '')
+    .replace(/\(.*?\)|\[.*?\]/g, ' ')
+    .split(/\s*(?:,|;|\+|&|\/|\s+и\s+|\s+and\s+)\s*/i)
+    .map(function (part) {
+      return part.replace(/\b\d{1,2}([:.]\d{2})?\s*(ч\.?|часа)?\b/gi, ' ')
+        .split(/\s+/).filter(function (w) { return w && !NAME_NOISE[w.toLowerCase()]; }).join(' ').trim();
+    })
+    .filter(function (x) { return x.length >= 2 && /[A-Za-zА-Яа-яЁёЍѝ]/.test(x); })
+    .slice(0, 8);
+}
+function matchPart_(part, kids) {
+  var t = norm_(part);
+  var has = function (needle) { needle = norm_(needle); return needle.trim() && t.indexOf(needle) >= 0; };
+  // 1) псевдоним — може да е на няколко деца („близнаците" → Давид и Самуил)
+  var byAlias = kids.filter(function (c) { return String(c.calendarName || '').split(',').some(function (a) { return a.trim() && has(a); }); });
+  if (byAlias.length) return byAlias;
+  // 2) име + фамилия
+  var byFull = kids.filter(function (c) { return c.lastName && has(c.firstName + ' ' + c.lastName); });
+  if (byFull.length === 1) return byFull;
+  // 3) само име; при двама с едно име — „Мария П." по първата буква на фамилията
+  var byFirst = kids.filter(function (c) { return c.firstName && has(c.firstName); });
+  if (byFirst.length === 1) return byFirst;
+  if (byFirst.length > 1) {
+    var ini = (String(part).match(/\s([A-Za-zА-Яа-яЁёЍѝ])\.?\s*$/) || [])[1];
+    if (ini) { var f = byFirst.filter(function (c) { return String(c.lastName || '').charAt(0).toLowerCase() === ini.toLowerCase(); }); if (f.length === 1) return f; }
+  }
+  return [];
+}
+function matchKids_(title, kids) {
+  var parts = nameParts_(title), seen = {}, out = [], unknown = [];
+  parts.forEach(function (part) {
+    var hit = matchPart_(part, kids);
+    if (!hit.length) { unknown.push(part.charAt(0).toUpperCase() + part.slice(1)); return; }
+    hit.forEach(function (c) { if (!seen[c.id]) { seen[c.id] = 1; out.push(c); } });
+  });
+  if (!out.length && parts.length !== 1) { var one = matchChild_(title, kids); if (one) { out.push(one); unknown = []; } }
+  return { kids: out, unknown: unknown };
 }
 function teamHideWords_(teamId) {
   var t = findById_('Teams', teamId) || {};
@@ -1661,10 +1706,13 @@ function annotateEvents_(events, teamId) {
     var k = calKind_(ev, kids, hideWords);
     if (!k.kind) return;
     ev.kind = k.kind;
-    var c = k.child || null;
-    ev.childId = c ? c.id : null;
-    ev.childName = c ? (c.firstName + ' ' + (c.lastName || '')).trim() : null;
-    ev.guessName = c || k.kind === 'off' ? null : guessName_(ev.title);
+    var ks = k.kids || [];
+    ev.children = ks.map(function (c) { return { id: c.id, name: (c.firstName + ' ' + (c.lastName || '')).trim(), firstName: c.firstName }; });
+    ev.childIds = ks.map(function (c) { return c.id; });
+    ev.childId = ks.length ? ks[0].id : null;
+    ev.childName = ks.length ? ks.map(function (c) { return c.firstName; }).join(', ') : null;
+    ev.unknownNames = k.unknown || [];
+    ev.guessName = ks.length || k.kind === 'off' ? null : (ev.unknownNames[0] || guessName_(ev.title));
     ev.sessionId = imported[ev.key] || null;
     delete ev.description; // не изпращаме описанията (може да са лични)
     out.push(ev);
@@ -1756,12 +1804,13 @@ function actImportCalendarEvents_(p) {
   items.forEach(function (it) {
     if (!it.key || !it.date) return;
     if (imported[it.key]) { out.push({ key: it.key, sessionId: imported[it.key], existed: true }); return; }
-    var child = it.childId ? mustChild_(it.childId, p._teamId) : null;
+    var ids = (it.childIds && it.childIds.length ? it.childIds : (it.childId ? [it.childId] : [])).slice(0, 30);
+    var kidsIn = ids.map(function (cid) { return mustChild_(cid, p._teamId); });
     var id = Utilities.getUuid();
     sessions.push({ id: id, sessionDate: nd_(it.date), startTime: nt_(it.startTime || '17:00'), coachId: p._coachId,
       location: it.location || '', notes: it.title ? 'От Google Calendar: ' + String(it.title).slice(0, 200) : '',
       createdAt: nowIso_(), teamId: p._teamId, groupId: '', durationMin: numStr_(it.durationMin), seriesId: '', status: '', gcalKey: it.key });
-    if (child) parts.push({ id: Utilities.getUuid(), sessionId: id, childId: child.id, attended: '', updatedAt: nowIso_() });
+    kidsIn.forEach(function (c) { parts.push({ id: Utilities.getUuid(), sessionId: id, childId: c.id, attended: '', updatedAt: nowIso_() }); });
     imported[it.key] = id;
     out.push({ key: it.key, sessionId: id, existed: false });
   });

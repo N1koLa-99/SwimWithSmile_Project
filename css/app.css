@@ -925,3 +925,29 @@ details.more[open] { padding-bottom: 6px; }
 }
 .mzg .cal-ev.dot.cal-gcal { --ec: #2F6FED; }
 .mzg .cal-ev.dot.cal-gcal.is-known { --ec: #0F9D63; }
+
+/* ================= v49: събитие от Google с няколко деца ================= */
+.who2 { margin-top: 14px; display: grid; gap: 8px; }
+.who2 h4 { margin: 0 0 2px; font-family: var(--font-head); font-size: 1rem; color: var(--navy); }
+.w2 { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px; border-radius: 14px; background: var(--sky-50); }
+.w2 > b { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w2.ok { background: #ECFDF5; }
+.w2.q { background: #FFF7E6; }
+.w2.q.open { border-radius: 14px 14px 0 0; }
+.w2 small { color: var(--muted); font-weight: 600; margin-right: auto; }
+.w2.q > b { flex: 0 1 auto; }
+.w2-q { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: #FFE3A8; color: #8A5300; font-weight: 800; flex-shrink: 0; }
+.w2-x { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--muted); }
+.w2-x:hover { background: #fff; color: var(--red); }
+.w2-x svg { width: 15px; height: 15px; }
+.w2-pick { margin-top: -8px; padding: 10px 12px 12px; border-radius: 0 0 14px 14px; background: #FFFBF2; border-top: 1px dashed #F3D58D; }
+.w2-list { display: grid; gap: 4px; max-height: 260px; overflow: auto; }
+.w2-i { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; cursor: pointer; background: #fff; }
+.w2-i input { position: absolute; opacity: 0; pointer-events: none; }
+.w2-i .w2-n { flex: 1; min-width: 0; font-weight: 600; }
+.w2-i > .avatar, .w2 > .avatar { flex: 0 0 auto; }
+.w2-i i { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--sky-100); flex-shrink: 0; display: grid; place-items: center; }
+.w2-i.on { background: color-mix(in srgb, var(--brand) 8%, #fff); }
+.w2-i.on i { background: var(--brand); border-color: var(--brand); }
+.w2-i.on i::after { content: ''; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.w2-act { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
