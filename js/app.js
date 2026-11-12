@@ -686,7 +686,8 @@
             <button class="btn-icon btn-ghost calx-burger" id="calMenu" aria-label="Меню на графика">${I.menu}</button>
             <button class="btn btn-soft btn-sm" id="todayBtn">Днес</button>
             <div class="cal-nav"><button class="btn-icon btn-ghost" id="prevM" aria-label="Предишен месец">${I.chevL}</button><button class="btn-icon btn-ghost" id="nextM" aria-label="Следващ месец">${I.chevR}</button></div>
-            <div class="cal-title" id="calTitle"></div>
+            <button type="button" class="cal-title-btn" id="calTitleBtn" aria-label="Избери месец"><span class="cal-title" id="calTitle"></span><svg class="caret" viewBox="0 0 24 24" width="18" height="18"><path d="M7 10l5 5 5-5z" fill="currentColor"/></svg></button>
+            <button type="button" class="cal-todayico" id="todayIco" aria-label="Днес" title="Днес"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 9.5h17"/></svg><b>${new Date().getDate()}</b></button>
             <div class="mz" id="mz" role="group" aria-label="Мащаб">
               <button type="button" data-z="out" aria-label="Намали" title="Намали (Ctrl −)">−</button>
               <button type="button" data-z="fit" class="mz-v" title="Целият месец на екрана"></button>
@@ -697,6 +698,7 @@
               <button data-v="list" aria-label="Списък" title="Списък">${I.list}</button>
             </div>
           </div>
+          <div class="mini-drop" id="miniDrop" hidden></div>
           <div id="calBody">${loading()}</div>
         </section>
       </div>`);
@@ -708,6 +710,8 @@
     S.onLeave && S.onLeave(() => document.body.classList.remove('calx-open'));
     $('#gcalBtn2').onclick = () => calendarSync();
     $('#calRefresh2').onclick = () => $('#calRefresh').click();
+    $('#todayIco').onclick = () => $('#todayBtn').click();
+    $('#calTitleBtn').onclick = () => { if (innerWidth >= 1000) return; const d = $('#miniDrop'); d.hidden = !d.hidden; $('#calTitleBtn').classList.toggle('open', !d.hidden); if (!d.hidden && _lastCal) paintCalendar(_lastCal); };
     $('#calView2').onclick = () => { document.body.classList.remove('calx-open'); $('#calScrim').hidden = true; $(`.seg-mini button[data-v="${calState.view === 'month' ? 'list' : 'month'}"]`).click(); };
     $('#newSession').onclick = () => sessionForm();
     $('#gcalBtn').onclick = () => calendarSync();
@@ -731,7 +735,7 @@
   async function drawCalendar() {
     const myToken = ++calRenderToken;
     const t = $('#calTitle'); if (!t) return;
-    t.textContent = `${MONTHS[calState.m]} ${calState.y}`;
+    t.textContent = innerWidth < 700 && calState.y === new Date().getFullYear() ? MONTHS[calState.m] : `${MONTHS[calState.m]} ${calState.y}`;
     const body = $('#calBody');
     const y = calState.y, m = calState.m + 1;
     if (API.peek('month', { year: y, month: m }) === undefined) body.innerHTML = loading();
@@ -829,39 +833,83 @@
     const offset = (first.getDay() + 6) % 7;
     const days = new Date(calState.y, calState.m + 1, 0).getDate();
     const weeks = Math.ceil((offset + days) / 7);
-    let cells = DOW.map((d,i) => `<div class="cal-dow ${i>=5?'weekend':''}">${d}</div>`).join('');
-    for (let i = 0; i < offset; i++) cells += `<div class="cal-cell empty"></div>`;
-    // Като в Google Calendar: всяко събитие е ред „час + име". Колко реда се виждат зависи от мащаба.
-    // „17:00" → в тясна колона „17" (минутите :00 се скриват), за да остане място за името
+    // „17:00" → в тясна колона „17" (минутите :00 се скриват)
     const tHtml = (t) => { const [h, m] = String(t).split(':'); return `<b>${h}<em class="${m === '00' ? 'z' : ''}">:${m}</em></b>`; };
-    const pill = (cls, attrs, time, name, tip) => `<div class="cal-ev ${cls} ${time ? 'dot' : 'bar'}" ${attrs} title="${esc(tip)}">${time ? tHtml(time) : ''}<span>${esc(name)}</span></div>`;
-    for (let d = 1; d <= days; d++) {
-      const isToday = isThisMonth && today.getDate() === d;
-      const dow = (offset + d - 1) % 7;
-      const items = [
-        ...(byDay[d] || []).map(s => ({ t: s.startTime || '', h: pill(s.status === 'cancelled' ? 'is-cancelled' : '', `data-sid="${s.id}" style="--ec:${sessColor(s, cc)}"`,
-          fmtTime(s.startTime), s.groupName || s.title || 'Тренировка', `${fmtTime(s.startTime)} · ${s.groupName || s.title || ''} · ${s.coachName} · ${peopleCount(s.participantCount)}`) })),
-        ...(byDayCal[d] || []).map(ev => ({ t: ev.allDay ? '' : (ev.startTime || ''), h: ev.kind === 'off'
-          ? pill('cal-gcal is-off', `data-gcal="${esc(ev.key || ev.id)}"`, '', '🌴 ' + firstName(ev.coachName), `${ev.title} · ${ev.coachName || ''}`)
-          : pill(`cal-gcal ${ev.childId ? 'is-known' : ''}`, `data-gcal="${esc(ev.key || ev.id)}"`, ev.allDay ? '' : fmtTime(ev.startTime),
-              ev.childName || ev.title, `${ev.title} · ${ev.coachName || ''} (Google Calendar)${ev.childName ? ' → ' + ev.childName : ''}`) }))
-      ].sort((x, y) => x.t.localeCompare(y.t));
-      cells += `<div class="cal-cell ${isToday?'today':''} ${dow>=5?'weekend':''}" data-day="${d}" data-n="${items.length}">
-        <div class="cal-daynum">${d}</div><div class="cal-events">${items.map(i => i.h).join('')}</div><div class="cal-more" hidden></div></div>`;
-    }
-    const tail = (7 - (offset + days) % 7) % 7;
-    for (let i = 0; i < tail; i++) cells += `<div class="cal-cell empty"></div>`;
+
+    /* Като в Google Calendar: всяка седмица има „ленти" (редове). Многодневните събития са една лента
+       през дните, после целодневните, после тези с час. Колко ленти се виждат зависи от мащаба → „+N". */
+    const items = [];
+    list.forEach(x => {
+      const d = parseD(x.sessionDate).getDate();
+      items.push({ a: d, b: d, timed: true, t: x.startTime || '', cls: x.status === 'cancelled' ? 'is-cancelled' : '',
+        attrs: `data-sid="${x.id}"`, ec: sessColor(x, cc), name: x.groupName || x.title || 'Тренировка',
+        tip: `${fmtTime(x.startTime)} · ${x.groupName || x.title || ''} · ${x.coachName} · ${peopleCount(x.participantCount)}` });
+    });
+    const mStart = new Date(calState.y, calState.m, 1), mEnd = new Date(calState.y, calState.m, days);
+    calEvents.forEach(ev => {
+      let d0 = parseD(ev.date), d1 = ev.endDate ? parseD(ev.endDate) : d0;
+      if (d1 < mStart || d0 > mEnd) return;
+      if (d0 < mStart) d0 = mStart; if (d1 > mEnd) d1 = mEnd;
+      const off = ev.kind === 'off', timed = !ev.allDay && !off;
+      items.push({ a: d0.getDate(), b: d1.getDate(), timed, t: timed ? (ev.startTime || '') : '',
+        cls: `cal-gcal ${ev.childId ? 'is-known' : ''} ${off ? 'is-off' : ''}`, attrs: `data-gcal="${esc(ev.key || ev.id)}"`,
+        name: off ? '🌴 ' + firstName(ev.coachName) + (ev.title && !/почив/i.test(ev.title) ? ' · ' + ev.title : '') : (ev.childName || ev.title),
+        tip: `${ev.title} · ${ev.coachName || ''}${off ? '' : ' (Google Calendar)'}${ev.childName ? ' → ' + ev.childName : ''}` });
+    });
+    // седмиците: сегменти, подредени като в Google
+    const segs = Array.from({ length: weeks }, () => []);
+    items.forEach(it => {
+      for (let ci = offset + it.a - 1; ci <= offset + it.b - 1;) {
+        const w = Math.floor(ci / 7), c = ci % 7, cEnd = Math.min(6, c + (offset + it.b - 1 - ci));
+        segs[w].push({ it, c, n: cEnd - c + 1, cont: ci > offset + it.a - 1, more: cEnd < 6 && (offset + it.b - 1) > w * 7 + cEnd });
+        ci = w * 7 + cEnd + 1;
+      }
+    });
+    const nDays = new Date(calState.y, calState.m, 0).getDate();      // дни в предишния месец
+    let weeksHtml = '';
+    segs.forEach((list2, w) => {
+      list2.sort((x, y) => (y.n - x.n) || ((x.it.timed ? 1 : 0) - (y.it.timed ? 1 : 0)) || x.it.t.localeCompare(y.it.t) || (x.c - y.c));
+      const lanes = [];
+      list2.forEach(sg => {
+        let l = 0;
+        for (;; l++) { const row = lanes[l] || (lanes[l] = Array(7).fill(false)); let ok = true; for (let k = sg.c; k < sg.c + sg.n; k++) if (row[k]) { ok = false; break; } if (ok) break; }
+        for (let k = sg.c; k < sg.c + sg.n; k++) lanes[l][k] = true;
+        sg.l = l;
+      });
+      let bg = '';
+      for (let c = 0; c < 7; c++) {
+        const ci = w * 7 + c, d = ci - offset + 1, inM = d >= 1 && d <= days;
+        const num = inM ? d : d < 1 ? nDays + d : d - days;
+        const isToday = inM && isThisMonth && today.getDate() === d;
+        bg += `<div class="cal-cell ${inM ? '' : 'out'} ${isToday ? 'today' : ''} ${c >= 5 ? 'weekend' : ''}" ${inM ? `data-day="${d}"` : `data-mo="${d < 1 ? -1 : 1}"`}><div class="cal-daynum">${num}</div></div>`;
+      }
+      const evs = list2.map(sg => {
+        const it = sg.it, span = !it.timed || sg.n > 1;
+        return `<div class="cal-ev ${it.cls} ${span ? 'bar' : 'dot'} ${sg.cont ? 'cont' : ''} ${sg.more ? 'more-r' : ''}" ${it.attrs} title="${esc(it.tip)}"
+          data-l="${sg.l}" data-c="${sg.c}" data-n="${sg.n}" style="grid-column:${sg.c + 1} / span ${sg.n};grid-row:${sg.l + 1}${it.ec ? ';--ec:' + it.ec : ''}">${!span && it.t ? tHtml(fmtTime(it.t)) : ''}<span>${esc(it.name)}</span></div>`;
+      }).join('');
+      weeksHtml += `<div class="wk" data-w="${w}" data-lanes="${lanes.length}"><div class="wk-bg">${bg}</div><div class="wk-ev">${evs}</div></div>`;
+    });
     const key = calState.y + '-' + calState.m;
     const old = $('#calScroll');
     const keepTop = old && old.dataset.k === key ? old.scrollTop : null;
-    body.innerHTML = `${legendHtml}<div class="cal-scroll" id="calScroll" data-k="${key}"><div class="cal-grid mzg" data-w="${weeks}">${cells}</div></div>`;
+    body.innerHTML = `${legendHtml}<div class="cal-scroll" id="calScroll" data-k="${key}"><div class="cal-grid mzg" data-w="${weeks}">
+      <div class="mz-dow">${DOW.map((d, i) => `<div class="cal-dow ${i >= 5 ? 'weekend' : ''}">${d}</div>`).join('')}</div>${weeksHtml}</div></div>`;
     const sc = $('#calScroll');
-    MZ.attach(sc, weeks);
+    MZ.attach(sc, weeks, (dir) => (dir > 0 ? $('#nextM') : $('#prevM')).click());
     if (keepTop !== null) sc.scrollTop = keepTop;
-    else if (isThisMonth && sc.scrollHeight > sc.clientHeight + 4) { const tc = $('.cal-cell.today', sc); if (tc) sc.scrollTop = tc.offsetTop - sc.querySelector('.cal-dow').offsetHeight; }
-    $$('.cal-cell[data-day]', body).forEach(c => c.onclick = () => { if (MZ.busy()) return; dayModal(+c.dataset.day, byDay[+c.dataset.day] || [], byDayCal[+c.dataset.day] || [], cc); });
-    $$('.cal-ev[data-sid]', body).forEach(el => el.onclick = (e) => { e.stopPropagation(); if (MZ.busy()) return; sessionDetail(el.dataset.sid, refreshCal); });
-    $$('.cal-ev[data-gcal]', body).forEach(el => el.onclick = (e) => { e.stopPropagation(); if (MZ.busy()) return; gcalDetail(el.dataset.gcal); });
+    else if (isThisMonth && sc.scrollHeight > sc.clientHeight + 4) { const tc = $('.cal-cell.today', sc); if (tc) sc.scrollTop = tc.closest('.wk').offsetTop - sc.querySelector('.mz-dow').offsetHeight; }
+    const openDay = (d) => dayModal(d, byDay[d] || [], byDayCal[d] || [], cc);
+    $$('.cal-cell[data-day]', body).forEach(c => c.onclick = () => { if (MZ.busy()) return; openDay(+c.dataset.day); });
+    $$('.cal-cell[data-mo]', body).forEach(c => c.onclick = () => { if (MZ.busy()) return; (+c.dataset.mo < 0 ? $('#prevM') : $('#nextM')).click(); });
+    sc.addEventListener('click', (e) => {
+      const ev = e.target.closest('.cal-ev'), mo = e.target.closest('.cal-more');
+      if (MZ.busy()) return;
+      if (mo) { e.stopPropagation(); openDay(+mo.dataset.day); return; }
+      if (!ev) return;
+      e.stopPropagation();
+      if (ev.dataset.sid) sessionDetail(ev.dataset.sid, refreshCal); else if (ev.dataset.gcal) gcalDetail(ev.dataset.gcal);
+    });
     bindBanner(known);
   }
 
@@ -886,31 +934,35 @@
       const cw = grid.clientWidth / 7;
       const two = cw < 74 && rh >= 150;                           // тясна колона и увеличено → час отгоре, име отдолу
       const wrap = rh >= (two ? 220 : 170);                       // още по-увеличено → името на 2 реда
-      const fs = cw < 74 ? Math.max(10, Math.min(12.5, 8.4 + rh * 0.02)) : Math.max(10.5, Math.min(13, 9.6 + rh * 0.028));
+      const fs = cw < 74 ? Math.max(10.5, Math.min(12.5, 9 + rh * 0.02)) : Math.max(10.5, Math.min(13, 9.6 + rh * 0.028));
       const lines = (two ? 1 : 0) + (wrap ? 2 : 1);
       const ph = lines === 1 ? Math.round(fs * 1.45 + 5) : Math.round(fs * (1.15 * lines + .1) + 4);
       if (wrap !== lastWrap) { grid.classList.toggle('mz-wrap', wrap); lastWrap = wrap; }
-      grid.style.gridTemplateRows = `auto repeat(${weeks}, ${rh.toFixed(1)}px)`;
+      grid.style.setProperty('--rh', rh.toFixed(1) + 'px');
       grid.style.setProperty('--fs', fs.toFixed(2) + 'px');
       grid.style.setProperty('--ph', ph + 'px');
       if (two !== lastTwo) { grid.classList.toggle('mz-two', two); lastTwo = two; }
       grid.classList.toggle('mz-narrow', cw < 74 && !two);
       const dn = Math.min(cw < 74 ? 22 : 26, Math.max(18, rh * 0.2));
       grid.style.setProperty('--dn', dn.toFixed(1) + 'px');
-      const fit = Math.max(0, Math.floor((rh - dn - 8) / (ph + 2)));
+      const fit = Math.max(0, Math.floor((rh - dn - 10) / (ph + 2)));
       if (fit !== lastFit) { lastFit = fit; paintFit(fit); }
       const v2 = $('#mz .mz-v'); if (v2) { v2.textContent = fitNow() ? 'Месец' : Math.round(rh / defRh() * 100) + '%'; v2.title = auto ? 'Целият месец е на екрана' : 'Целият месец на екрана'; }
     }
-    // Колко събития се виждат в клетка; останалите → „+N"
+    // Колко ленти се виждат в седмицата; скритите събития → „+N" под деня (като в Google)
     function paintFit(fit) {
-      grid.querySelectorAll('.cal-cell[data-n]').forEach(c => {
-        const n = +c.dataset.n; if (!n) return;
-        const show = n <= fit ? n : Math.max(0, fit - 1);
-        const evs = c.firstElementChild.nextElementSibling.children;
-        for (let i = 0; i < evs.length; i++) evs[i].hidden = i >= show;
-        const more = c.lastElementChild;
-        more.hidden = show >= n;
-        if (show < n) more.textContent = show ? `+${n - show}` : `${n} ${n === 1 ? 'час' : 'часа'}`;
+      grid.querySelectorAll('.wk').forEach(wk => {
+        const L = +wk.dataset.lanes, layer = wk.lastElementChild, cells = wk.firstElementChild.children;
+        layer.querySelectorAll('.cal-more').forEach(x => x.remove());
+        const vis = L <= fit ? L : Math.max(0, fit - 1);
+        const hid = [0, 0, 0, 0, 0, 0, 0];
+        for (const ev of layer.children) {
+          const h = +ev.dataset.l >= vis; ev.hidden = h;
+          if (h) for (let k = +ev.dataset.c, e = k + +ev.dataset.n; k < e; k++) hid[k]++;
+        }
+        let html = '';
+        hid.forEach((n, c) => { if (n && cells[c].dataset.day) html += `<button type="button" class="cal-more" data-day="${cells[c].dataset.day}" style="grid-column:${c + 1};grid-row:${vis + 1}">+${n}</button>`; });
+        if (html) layer.insertAdjacentHTML('beforeend', html);
       });
     }
     function at(v, fx, fy) { req = { v, fx, fy }; if (!raf) raf = requestAnimationFrame(flush); }
@@ -951,8 +1003,19 @@
       sc.style.maxHeight = sc.style.height = Math.max(320, bottom - Math.max(y0, t) - 14) + 'px';
     }
     const d2 = (ts) => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY) || 1;
-    function attach(el, w) {
+    let swipeDir = 0;
+    function attach(el, w, onSwipe) {
       sc = el; grid = el.firstElementChild; weeks = w; lastFit = -1; lastTwo = null; lastWrap = null;
+      if (swipeDir) { grid.classList.add(swipeDir > 0 ? 'slide-l' : 'slide-r'); swipeDir = 0; }
+      // плъзгане наляво/надясно = следващ/предишен месец (като в Google Calendar)
+      let sw = null;
+      el.addEventListener('touchstart', (e) => { sw = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null; }, { passive: true });
+      el.addEventListener('touchend', (e) => {
+        if (!sw || pinch || !onSwipe) { sw = null; return; }
+        const p0 = e.changedTouches[0], dx = p0.clientX - sw.x, dy = p0.clientY - sw.y;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6 && Date.now() - sw.t < 700) { quietUntil = Date.now() + 350; swipeDir = dx < 0 ? 1 : -1; onSwipe(swipeDir); }
+        sw = null;
+      });
       fitHeight();
       if (!rh) rh = defRh();
       apply(fitNow() ? fitRh() : rh);
@@ -993,7 +1056,9 @@
   })();
   // Малкият календар вляво: месецът, днес, дни с тренировки; клик = денят
   function paintMini(byDay, byDayCal, cc) {
-    const host = $('#miniCal'); if (!host) return;
+    ['#miniCal', '#miniDrop'].forEach(sel => { const host = $(sel); if (host && !(sel === '#miniDrop' && host.hidden)) paintMiniIn(host, byDay, byDayCal, cc); });
+  }
+  function paintMiniIn(host, byDay, byDayCal, cc) {
     const first = new Date(calState.y, calState.m, 1), off = (first.getDay() + 6) % 7;
     const n = new Date(calState.y, calState.m + 1, 0).getDate(), t = new Date();
     let cells = '';
@@ -1010,7 +1075,7 @@
     $$('[data-mm]', host).forEach(b => b.onclick = () => (+b.dataset.mm < 0 ? $('#prevM') : $('#nextM')).click());
     $$('.mini-d', host).forEach(b => b.onclick = () => {
       if (b.dataset.mo) return (+b.dataset.mo < 0 ? $('#prevM') : $('#nextM')).click();
-      const d = +b.dataset.md; document.body.classList.remove('calx-open'); $('#calScrim') && ($('#calScrim').hidden = true); dayModal(d, byDay[d] || [], byDayCal[d] || [], cc);
+      const d = +b.dataset.md; const dd = $('#miniDrop'); if (dd) { dd.hidden = true; $('#calTitleBtn')?.classList.remove('open'); } document.body.classList.remove('calx-open'); $('#calScrim') && ($('#calScrim').hidden = true); dayModal(d, byDay[d] || [], byDayCal[d] || [], cc);
     });
   }
   function bindBanner(known) {

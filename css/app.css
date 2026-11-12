@@ -844,3 +844,84 @@ details.more[open] { padding-bottom: 6px; }
   .calx-only-m { display: flex !important; }
   .calx-main .seg-mini { display: none; }
 }
+
+/* ================= v48: месецът с „ленти" като в Google Calendar ================= */
+.cal-grid.mzg { display: block; border: 0; border-radius: 0; overflow: visible; background: #fff; }
+.mz-dow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); position: sticky; top: 0; z-index: 3; background: #fff; border-bottom: 1px solid var(--sky-100); }
+.mz-dow .cal-dow { border: 0; padding: 8px 0 6px; }
+.wk { position: relative; height: var(--rh, 110px); border-bottom: 1px solid var(--sky-100); border-right: 0 !important; }
+.wk:last-child { border-bottom: 0; }
+.wk-bg { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.wk-bg > .cal-cell { height: 100%; min-height: 0; padding: 4px 0 0; border: 0; border-right: 1px solid var(--sky-100); border-radius: 0; background: #fff; overflow: visible; contain: none; }
+.wk-bg > .cal-cell:last-child { border-right: 0; }
+.wk-bg > .cal-cell:hover { background: #F7FAFF; }
+.wk-bg > .cal-cell.weekend { background: #FCFDFF; }
+.wk-bg > .cal-cell.today { background: color-mix(in srgb, var(--brand) 4%, #fff); }
+.wk-bg > .cal-cell.out .cal-daynum { color: #AEBBD0; font-weight: 500; }
+.wk-bg > .cal-cell .cal-daynum { align-self: center; margin: 0 auto; }
+.wk-ev { position: absolute; left: 0; right: 0; top: calc(var(--dn) + 9px); bottom: 2px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: var(--ph); row-gap: 2px; align-content: start; pointer-events: none; overflow: hidden; }
+.wk-ev > * { pointer-events: auto; margin: 0 3px; min-width: 0; }
+.wk-ev > [hidden] { display: none !important; }
+.wk-ev .cal-ev { height: var(--ph); cursor: pointer; }
+.wk-ev .cal-ev.cont { margin-left: 0; border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; }
+.wk-ev .cal-ev.more-r { margin-right: 0; border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+.wk-ev .cal-more { justify-self: start; align-self: center; height: auto; padding: 1px 5px; border-radius: 5px; font-size: calc(var(--fs) * .95); font-weight: 700; color: var(--ink-2); background: none; line-height: 1.2; }
+.wk-ev .cal-more:hover { background: var(--sky-50); }
+
+/* цветове като в Google: синьо — Google събития, зелено — разпознато дете, жълто — почивка, групата/треньорът — тренировки */
+.mzg .cal-ev.cal-gcal { --ec: #2F6FED; }
+.mzg .cal-ev.cal-gcal.is-known { --ec: #0F9D63; }
+.mzg .cal-ev.cal-gcal.is-off { --ec: #E8930C; }
+/* целодневни / многодневни = лента */
+.mzg .cal-ev.bar, .mzg .cal-ev.bar.cal-gcal, .mzg .cal-ev.bar.cal-gcal:not(.is-off), .mzg .cal-ev.bar.cal-gcal.is-off { background: color-mix(in srgb, var(--ec) 14%, #fff); border: 0; border-left: 0;
+  color: color-mix(in srgb, var(--ec) 70%, #0B1F44); border-radius: 5px; padding: 0 6px; font-weight: 700; }
+.mzg .cal-ev.bar::before { display: none; }
+
+/* ---- телефон: чиповете са само с име, с цветна рамка (като в Google Calendar за iPhone/Android) ---- */
+.mzg.mz-narrow .cal-ev.dot, .mzg.mz-narrow .cal-ev.dot.cal-gcal, .mzg.mz-narrow .cal-ev.dot.cal-gcal.is-known {
+  background: #fff; border: 1.5px solid var(--ec); border-radius: 5px; padding: 0 3px; color: color-mix(in srgb, var(--ec) 78%, #0B1F44); }
+.mzg.mz-narrow .cal-ev.dot::before { display: none; }
+.mzg.mz-narrow .cal-ev.dot b { display: none; }
+.mzg.mz-narrow .cal-ev span { font-weight: 600; letter-spacing: -.005em; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.mzg.mz-narrow .cal-ev.bar { padding: 0 4px; }
+.mzg.mz-narrow .wk-ev > * { margin: 0 2px; }
+.mzg.mz-two .cal-ev.dot, .mzg.mz-two .cal-ev.dot.cal-gcal { background: #fff; border: 1.5px solid var(--ec); border-radius: 5px; padding: 1px 3px; color: color-mix(in srgb, var(--ec) 78%, #0B1F44); }
+.mzg.mz-two .cal-ev.dot b { color: inherit; opacity: .8; }
+
+/* смяна на месеца с плъзгане */
+@keyframes mzSlideL { from { transform: translateX(28px); opacity: .35; } to { transform: none; opacity: 1; } }
+@keyframes mzSlideR { from { transform: translateX(-28px); opacity: .35; } to { transform: none; opacity: 1; } }
+.mzg.slide-l .wk { animation: mzSlideL .22s cubic-bezier(.2,.8,.2,1); }
+.mzg.slide-r .wk { animation: mzSlideR .22s cubic-bezier(.2,.8,.2,1); }
+
+/* заглавие „Ноември ▾", иконка „днес" */
+.cal-title-btn { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 1 1 auto; text-align: left; color: var(--navy); }
+.cal-title-btn .caret { display: none; flex-shrink: 0; transition: transform .2s; }
+.cal-title-btn.open .caret { transform: rotate(180deg); }
+.cal-todayico { display: none; position: relative; width: 40px; height: 40px; place-items: center; color: var(--ink-2); border-radius: 12px; }
+.cal-todayico b { position: absolute; left: 0; right: 0; top: 14px; font-size: .68rem; font-weight: 800; text-align: center; }
+.mini-drop { padding: 6px 14px 12px; border-bottom: 1px solid var(--sky-100); }
+.mini-drop[hidden] { display: none; }
+.mini-drop .mini-h { display: none; }
+.mini-drop .mini-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; max-width: 420px; margin: 0 auto; }
+.mini-drop .mini-g > span { font-size: .7rem; font-weight: 700; color: var(--muted); padding: 4px 0; }
+.mini-drop .mini-d { position: relative; height: 38px; border-radius: 50%; font-size: .9rem; font-weight: 600; color: var(--ink-2); display: grid; place-items: center; }
+.mini-drop .mini-d.out { color: #B8C4D8; }
+.mini-drop .mini-d.has::after { content: ''; position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: var(--brand); }
+.mini-drop .mini-d.today { background: var(--brand); color: #fff; } .mini-drop .mini-d.today::after { background: #fff; }
+
+@media (max-width: 699px) {
+  #view:has(.calx) { padding-left: 0; padding-right: 0; padding-top: 0; }
+  .calx-main.card { border-radius: 0; box-shadow: none; border: 0; padding: 0; background: #fff; }
+  .calx-main .cal-head { padding: 6px 8px 4px 6px; margin: 0; gap: 6px; }
+  .calx-main #todayBtn, .calx-main .cal-nav { display: none; }
+  .cal-title-btn .caret { display: block; }
+  .calx-main .cal-head .cal-title { font-family: var(--font-body, inherit); font-weight: 500; font-size: 1.45rem !important; color: var(--ink); margin: 0 0 0 2px; }
+  .cal-todayico { display: grid; }
+  .calx-main .cal-scroll { border: 0; border-top: 1px solid var(--sky-100); border-radius: 0; }
+  .mz-dow .cal-dow { font-size: .7rem; padding: 6px 0 4px; }
+  .wk-bg > .cal-cell .cal-daynum { font-weight: 500; font-size: .86rem; }
+}
+.mzg .cal-ev.dot.cal-gcal { --ec: #2F6FED; }
+.mzg .cal-ev.dot.cal-gcal.is-known { --ec: #0F9D63; }
