@@ -259,6 +259,31 @@
     paint(u.teams && u.teams.length ? u.teams : [{ teamId: u.teamId, teamName: u.teamName, role: u.role }]);
     try { const list = await API.myTeams(); if ($('#modal-host .modal-body')) paint(list); } catch {}
   }
+  // Профил: име, потребителско име, парола
+  function profileForm() {
+    const u = API.getUser() || {};
+    modal({ title: 'Моят профил', body: `
+      <div class="field"><label for="pfName">Име и фамилия</label><input class="input" id="pfName" value="${esc(u.name || '')}" maxlength="80" autocomplete="name"></div>
+      <div class="field"><label for="pfUser">Потребителско име</label><input class="input" id="pfUser" value="${esc(u.username || '')}" maxlength="30" placeholder="напр. Ники" autocomplete="username">
+        <span class="hint">Влизаш с него или с имейла (${esc(u.email || '')}). Уникално е.</span></div>
+      <details class="howto"><summary>Смени паролата</summary>
+        <div class="field" style="margin-top:10px"><label for="pfCur">Сегашна парола</label><input class="input" id="pfCur" type="password" autocomplete="current-password"></div>
+        <div class="field"><label for="pfNew">Нова парола</label><input class="input" id="pfNew" type="password" autocomplete="new-password" placeholder="поне 8 символа"></div>
+      </details>`,
+      footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="pfSave">${I.check} Запази</button>` });
+    $('#pfSave').onclick = async (ev) => {
+      const dto = {};
+      const name = $('#pfName').value.trim(), user = $('#pfUser').value.trim(), cur = $('#pfCur').value, nw = $('#pfNew').value;
+      if (name !== (u.name || '')) dto.fullName = name;
+      if (user !== (u.username || '')) dto.username = user;
+      if (nw || cur) { if (nw.length < 8) return toast('Новата парола — поне 8 символа', 'err'); dto.newPassword = nw; dto.currentPassword = cur; }
+      if (!Object.keys(dto).length) return closeModal();
+      busy(ev.currentTarget, true, 'Запис…');
+      try { await API.updateProfile(dto); toast('Запазено', 'ok'); closeModal(); render(); }
+      catch (e) { busy(ev.currentTarget, false); err(e); }
+    };
+  }
+
   function newTeamForm() {
     modal({ title: 'Нов отбор', body: `
       <div class="field"><label for="ntName">Име на отбора</label><input class="input" id="ntName" placeholder="напр. Делфините — Велико Търново" maxlength="60"></div>
@@ -298,8 +323,9 @@
     const u = API.getUser() || {};
     modal({ title: 'Профил', body: `
       <div class="me-card"><span class="avatar avatar-lg">${esc(initials(...(u.name || 'Т').split(' ')))}</span>
-        <div><b>${esc(u.name || 'Треньор')}</b><small>${esc(u.email || '')}</small>${u.teamName ? `<small>${esc(u.teamName)} · ${u.role === 'owner' ? 'собственик' : 'треньор'}</small>` : ''}</div></div>
+        <div><b>${esc(u.name || 'Треньор')}</b><small>${u.username ? '@' + esc(u.username) + ' · ' : ''}${esc(u.email || '')}</small>${u.teamName ? `<small>${esc(u.teamName)} · ${u.role === 'owner' ? 'собственик' : 'треньор'}</small>` : ''}</div></div>
       <div class="menu-list">
+        <button class="menu-row" id="meProfile">${I.user}<span>Моят профил${u.username ? '' : ' <small class="txt-red">· избери потребителско име</small>'}</span>${I.chevR}</button>
         <a href="#/app/team" class="menu-row">${I.team}<span>Отбор и покани</span>${I.chevR}</a>
         <button class="menu-row" id="meTeams">${I.layers}<span>Смени / нов отбор</span>${I.chevR}</button>
         <button class="menu-row" id="meCal">${I.cal}<span>Google Calendar</span>${I.chevR}</button>
@@ -310,6 +336,7 @@
     $$('#modal-host a.menu-row').forEach(a => a.addEventListener('click', closeModal));
     $('#meCal').onclick = () => window.__SWS.calendarSync();
     $('#meTeams').onclick = () => teamSheet();
+    $('#meProfile').onclick = () => profileForm();
     $('#meApi').onclick = () => openConfig();
     $('#meOut').onclick = () => { closeModal(); API.logout(); navigate('/'); };
   }

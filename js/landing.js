@@ -15,6 +15,14 @@
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const FINE_POINTER = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  // Същите правила като на сървъра
+  const userErr = (u) => {
+    u = String(u || '').trim().replace(/\s+/g, ' ');
+    if (u.length < 3 || u.length > 30) return 'Между 3 и 30 знака';
+    if (/@/.test(u)) return 'Без @ — то е за имейла';
+    if (!/^[0-9A-Za-zА-Яа-яЁёЍѝ._ -]+$/.test(u)) return 'Само букви, цифри, интервал, . _ -';
+    return null;
+  };
 
 
 
@@ -677,7 +685,7 @@
         <form id="coachForm" class="auth-form" ${parentFirst ? 'hidden' : ''} novalidate>
           <h2>Вход за треньори</h2>
           <p class="auth-lead">Влез, за да управляваш тренировките на отбора.</p>
-          ${inField('Имейл', 'email', { type: 'email', ph: 'ime@example.com', icon: I.mail, auto: 'email' })}
+          ${inField('Имейл или потребителско име', 'login', { ph: 'напр. Ники или ime@example.com', icon: I.user, auto: 'username' })}
           ${inField('Парола', 'password', { type: 'password', ph: '••••••••', icon: I.lock, auto: 'current-password' })}
           <button class="btn btn-primary btn-block btn-lg" type="submit">Вход ${I.arrowR}</button>
           <p class="auth-alt">Нямаш отбор? <a href="#/register">Създай безплатно</a></p>
@@ -702,7 +710,7 @@
       const coach = b.dataset.tab === 'coach';
       seg.classList.toggle('right', !coach);
       $('#coachForm').hidden = !coach; $('#parentForm').hidden = coach;
-      (coach ? $('#f_email') : $('#p_code')).focus({ preventScroll: true });
+      (coach ? $('#f_login') : $('#p_code')).focus({ preventScroll: true });
     });
     $('#p_code').oninput = (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8); };
     const rem = S.parentRemembered && S.parentRemembered();
@@ -711,10 +719,10 @@
     $('#coachForm').onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target, btn = f.querySelector('[type=submit]');
-      if (!f.email.value.trim() || !f.password.value) return toast('Въведи имейл и парола', 'err');
+      if (!f.login.value.trim() || !f.password.value) return toast('Въведи имейл или потребителско име и парола', 'err');
       busy(btn, true, 'Влизане…');
       try {
-        const r = await API.login(f.email.value.trim(), f.password.value);
+        const r = await API.login(f.login.value.trim(), f.password.value);
         toast(`Здравей, ${(r.fullName || '').split(' ')[0] || 'треньоре'}!`, 'ok'); navigate('/app/today');
       } catch (ex) { err(ex); busy(btn, false); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); }
     };
@@ -757,6 +765,7 @@
           <p class="auth-lead">Ти ще си собственикът на отбора.</p>
           ${inField('Име и фамилия', 'fullName', { ph: 'напр. Никола Климентов', icon: I.user, auto: 'name', value: d.fullName || '' })}
           ${inField('Имейл', 'email', { type: 'email', ph: 'ime@example.com', icon: I.mail, auto: 'email', value: d.email || '' })}
+          ${inField('Потребителско име', 'username', { ph: 'напр. Ники', icon: I.user, auto: 'username', value: d.username || '', hint: 'С него (или с имейла) влизаш. Уникално е — 3–30 знака.' })}
           ${inField('Парола', 'password', { type: 'password', ph: 'поне 8 символа', icon: I.lock, auto: 'new-password', value: d.password || '' })}
           <div class="pw-meter" id="pwMeter"><i></i><i></i><i></i><i></i><span></span></div>
           <button class="btn btn-primary btn-block btn-lg" type="submit">Напред ${I.arrowR}</button>
@@ -794,6 +803,7 @@
         if (st.step === 0) {
           if ((d.fullName || '').length < 2) return fieldErr('fullName', 'Въведи име и фамилия');
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email || '')) return fieldErr('email', 'Провери имейла');
+          if (d.username && userErr(d.username)) return fieldErr('username', userErr(d.username));
           if ((d.password || '').length < 8) return fieldErr('password', 'Поне 8 символа');
           st.step = 1; return paint();
         }
@@ -805,7 +815,8 @@
           welcome(r);
         } catch (ex) {
           busy(btn, false); err(ex);
-          if (/имейл/i.test(ex.message)) { st.step = 0; paint(); fieldErr('email', ex.message); }
+          if (/потребителско/i.test(ex.message)) { st.step = 0; paint(); fieldErr('username', ex.message); }
+          else if (/имейл/i.test(ex.message)) { st.step = 0; paint(); fieldErr('email', ex.message); }
         }
       };
     };
@@ -870,6 +881,7 @@
       <form id="joinForm" class="auth-form step-anim" novalidate ${full ? 'inert' : ''}>
         ${inField('Име и фамилия', 'fullName', { ph: 'напр. Доника Иванова', icon: I.user, auto: 'name' })}
         ${inField('Имейл', 'email', { type: 'email', ph: 'ime@example.com', icon: I.mail, auto: 'email' })}
+        ${inField('Потребителско име', 'username', { ph: 'напр. Дони', icon: I.user, auto: 'username', hint: 'С него (или с имейла) влизаш. Ако вече имаш профил — остави празно.' })}
         ${inField('Парола', 'password', { type: 'password', ph: 'поне 8 символа', icon: I.lock, auto: 'new-password' })}
         <button class="btn btn-sun btn-block btn-lg" type="submit" ${full ? 'disabled' : ''}>Влез в отбора ${I.arrowR}</button>
       </form>`;
@@ -877,13 +889,14 @@
     $('#joinForm').onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target, btn = $('[type=submit]', f);
-      const dto = { code, fullName: f.fullName.value.trim(), email: f.email.value.trim(), password: f.password.value };
+      const dto = { code, fullName: f.fullName.value.trim(), email: f.email.value.trim(), username: f.username.value.trim(), password: f.password.value };
+      if (dto.username && userErr(dto.username)) return fieldErr('username', userErr(dto.username));
       if (dto.fullName.length < 2) return fieldErr('fullName', 'Въведи име и фамилия');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)) return fieldErr('email', 'Провери имейла');
       if (dto.password.length < 8) return fieldErr('password', 'Поне 8 символа');
       busy(btn, true, 'Присъединяване…');
       try { await API.joinTeam(dto); toast(`Добре дошъл в „${info.teamName}“!`, 'ok'); navigate('/app/today'); }
-      catch (ex) { busy(btn, false); err(ex); }
+      catch (ex) { busy(btn, false); if (/потребителско/i.test(ex.message)) fieldErr('username', ex.message); else err(ex); }
     };
   });
 
@@ -931,7 +944,7 @@
             ${t.members.map((m, i) => `
               <div class="member">
                 <span class="m-av" style="--c:${COLORS[i % COLORS.length]}">${esc(initials(...(m.fullName || m.email).split(' ')))}</span>
-                <div class="m-main"><b>${esc(m.fullName || 'Треньор')}${m.id === me ? ' <em>(ти)</em>' : ''}</b><small>${esc(m.email)}</small></div>
+                <div class="m-main"><b>${esc(m.fullName || 'Треньор')}${m.id === me ? ' <em>(ти)</em>' : ''}</b><small>${m.username ? '@' + esc(m.username) + ' · ' : ''}${esc(m.email)}</small></div>
                 <span class="role ${m.role === 'owner' ? 'owner' : ''}">${m.role === 'owner' ? 'Собственик' : 'Треньор'}</span>
                 ${t.isOwner && m.id !== me ? `<button class="x-btn" data-rm="${m.id}" data-nm="${esc(m.fullName)}" title="Премахни" aria-label="Премахни ${esc(m.fullName)}">${I.trash}</button>` : ''}
               </div>`).join('')}

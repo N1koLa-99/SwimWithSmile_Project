@@ -38,7 +38,7 @@ var TZ = 'Europe/Sofia';
 // съществуващите данни. ensureSchema_() ги добавя автоматично.
 var SCHEMA = {
   Teams:        ['id','name','plan','inviteCode','ownerId','createdAt','icsKey','calendarKeywords','poolLength'],
-  Coaches:      ['id','fullName','email','passwordHash','active','createdAt','teamId','role','calendarOn','icsUrl'],
+  Coaches:      ['id','fullName','email','passwordHash','active','createdAt','teamId','role','calendarOn','icsUrl','username'],
   Children:     ['id','firstName','lastName','birthDate','gender','level','trainingStartDate',
                  'diagnosis','objectiveCondition','allergiesMedical','parentContact','emergencyContact',
                  'goals','notes','parentCode','photoUrl','isActive','createdAt','teamId',
@@ -64,7 +64,7 @@ var SCHEMA = {
 // Платформата е БЕЗПЛАТНА — без планове и лимити (старите стойности в колона plan се игнорират).
 var FREE = { name: 'Безплатен', seats: 1000, kids: 100000 };
 function planOf_(t) { return FREE; }
-var SCHEMA_VERSION = '7';
+var SCHEMA_VERSION = '8';
 
 // Google Calendar: кои събития се виждат в сайта
 var CAL_OFF_WORDS = ['почивк', 'почивен', 'почивни', 'отпуск', 'болничн', 'болен', 'болна', 'ваканц', 'не работя', 'отсъствам'];
@@ -372,6 +372,7 @@ function handle_(req) {
       case 'myTeams':              return actMyTeams_(p);
       case 'switchTeam':           return actSwitchTeam_(p);
       case 'createTeam':           return actCreateTeam_(p);
+      case 'updateProfile':        return actUpdateProfile_(p);
       case 'calendarSettings':     return actCalendarSettings_(p);
       case 'updateCalendarSettings': return actUpdateCalendarSettings_(p);
       case 'updateTeam':           return actUpdateTeam_(p);
@@ -486,9 +487,9 @@ function teamsForEmail_(email) {
 }
 
 function actLogin_(p) {
-  var email = String(p.email || '').trim().toLowerCase();
+  var email = loginEmail_(p.login || p.email);
   var rows = coachRowsByEmail_(email).filter(function (c) { return passwordOk_(c, p.password); });
-  if (!rows.length) return E(401, 'Грешен имейл или парола.');
+  if (!rows.length) return E(401, 'Грешен имейл/потребителско име или парола.');
   // Предпочитаният отбор (последно отваряният на това устройство), иначе първият
   var c = rows.filter(function (x) { return p.teamId && String(x.teamId) === String(p.teamId); })[0] || rows[0];
   return D(sessionOut_(c));
@@ -507,6 +508,33 @@ function actMyTeams_(p) {
   return D(teamsForEmail_(me && me.email));
 }
 
+// Профил: име, потребителско име, парола (важи за всички отбори на човека)
+function actUpdateProfile_(p) {
+  var d = p.data || {};
+  var me = findById_('Coaches', p._coachId);
+  var email = String(me.email || '').trim().toLowerCase();
+  var patch = {};
+  if (d.fullName !== undefined) {
+    var n = String(d.fullName || '').trim();
+    if (n.length < 2) return E(400, 'Въведи име и фамилия.');
+    patch.fullName = n.slice(0, 80);
+  }
+  if (d.username !== undefined) {
+    var ue = usernameError_(d.username); if (ue) return E(400, ue);
+    var owner = usernameOwner_(d.username);
+    if (owner && owner !== email) return E(400, 'Това потребителско име е заето. Избери друго.');
+    patch.username = cleanUser_(d.username);
+  }
+  if (d.newPassword !== undefined) {
+    if (!passwordOk_(me, d.currentPassword)) return E(400, 'Сегашната парола не е вярна.');
+    if (String(d.newPassword || '').length < 8) return E(400, 'Новата парола трябва да е поне 8 символа.');
+    patch.passwordHash = hashPw_(String(d.newPassword));
+  }
+  coachRowsByEmail_(email).forEach(function (c) { updateById_('Coaches', c.id, patch); });
+  var fresh = findById_('Coaches', p._coachId);
+  return D(sessionOut_(fresh));
+}
+
 // Нов отбор от вече влязъл треньор (ставаш собственик)
 function actCreateTeam_(p) {
   var name = String((p.data || {}).teamName || '').trim();
@@ -515,7 +543,7 @@ function actCreateTeam_(p) {
   var coachId = Utilities.getUuid();
   var teamId = createTeam_(name.slice(0, 60), 'free', coachId);
   var row = { id: coachId, fullName: me.fullName, email: String(me.email).trim().toLowerCase(), passwordHash: me.passwordHash,
-    active: 'TRUE', createdAt: nowIso_(), teamId: teamId, role: 'owner', calendarOn: me.calendarOn || '', icsUrl: me.icsUrl || '' };
+    active: 'TRUE', createdAt: nowIso_(), teamId: teamId, role: 'owner', calendarOn: me.calendarOn || '', icsUrl: me.icsUrl || '', username: me.username || '' };
   appendObject_('Coaches', row);
   seedAchievements_(teamId);
   seedSkills_(teamId);
@@ -524,9 +552,32 @@ function actCreateTeam_(p) {
 
 function sessionOut_(c) {
   var t = findById_('Teams', c.teamId) || {};
-  return { token: makeToken_(c.id), coachId: c.id, fullName: c.fullName, email: c.email,
+  return { token: makeToken_(c.id), coachId: c.id, fullName: c.fullName, email: c.email, username: c.username || '',
            teamId: c.teamId || null, teamName: t.name || '', role: c.role || 'coach', plan: 'free',
            teams: teamsForEmail_(c.email) };
+}
+
+// Потребителско име: 3–30 знака — букви (и кирилица), цифри, интервал, . _ -
+function normUser_(u) { return String(u || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+function usernameError_(u) {
+  u = String(u || '').trim().replace(/\s+/g, ' ');
+  if (u.length < 3 || u.length > 30) return 'Потребителското име трябва да е между 3 и 30 знака.';
+  if (/@/.test(u)) return 'Потребителското име не може да съдържа @.';
+  if (!/^[0-9A-Za-zА-Яа-яЁёЍѝ._ -]+$/.test(u)) return 'Потребителското име може да има само букви, цифри, интервал, точка, долна черта и тире.';
+  return null;
+}
+// Имейл на човека, който вече ползва това потребителско име (или null)
+function usernameOwner_(u) {
+  var n = normUser_(u);
+  if (!n) return null;
+  var hit = readObjects_('Coaches').filter(function (c) { return normUser_(c.username) === n; })[0];
+  return hit ? String(hit.email || '').trim().toLowerCase() : null;
+}
+// Вход с имейл ИЛИ потребителско име → имейлът на акаунта
+function loginEmail_(login) {
+  login = String(login || '').trim();
+  if (login.indexOf('@') >= 0) return login.toLowerCase();
+  return usernameOwner_(login) || '';
 }
 
 function validateNewCoach_(d) {
@@ -535,11 +586,14 @@ function validateNewCoach_(d) {
   var pw = String(d.password || '');
   if (name.length < 2) return 'Въведи име и фамилия.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Невалиден имейл.';
+  var ue = usernameError_(d.username); if (ue) return ue;
   if (pw.length < 8) return 'Паролата трябва да е поне 8 символа.';
   var taken = readObjects_('Coaches').some(function (c) { return String(c.email || '').trim().toLowerCase() === email; });
   if (taken) return 'Вече има профил с този имейл. Влез в него.';
+  if (usernameOwner_(d.username)) return 'Това потребителско име е заето. Избери друго.';
   return null;
 }
+function cleanUser_(u) { return String(u || '').trim().replace(/\s+/g, ' ').slice(0, 30); }
 
 function actRegister_(p) {
   var d = p.data || {};
@@ -554,7 +608,8 @@ function actRegister_(p) {
   var teamId = createTeam_(teamName.slice(0, 60), 'free', coachId);
   var coach = {
     id: coachId, fullName: existing ? existing.fullName : String(d.fullName).trim().slice(0, 80), email: String(d.email).trim().toLowerCase(),
-    passwordHash: existing ? existing.passwordHash : hashPw_(String(d.password)), active: 'TRUE', createdAt: nowIso_(), teamId: teamId, role: 'owner'
+    passwordHash: existing ? existing.passwordHash : hashPw_(String(d.password)), active: 'TRUE', createdAt: nowIso_(), teamId: teamId, role: 'owner',
+    username: existing ? (existing.username || '') : cleanUser_(d.username)
   };
   appendObject_('Coaches', coach);
   seedAchievements_(teamId);
@@ -601,7 +656,7 @@ function actJoinTeam_(p) {
       return D(sessionOut_(mine));
     }
     var linked = { id: Utilities.getUuid(), fullName: existing.fullName, email: email, passwordHash: existing.passwordHash,
-      active: 'TRUE', createdAt: nowIso_(), teamId: t.id, role: 'coach', calendarOn: existing.calendarOn || '', icsUrl: existing.icsUrl || '' };
+      active: 'TRUE', createdAt: nowIso_(), teamId: t.id, role: 'coach', calendarOn: existing.calendarOn || '', icsUrl: existing.icsUrl || '', username: existing.username || '' };
     appendObject_('Coaches', linked);
     return D(sessionOut_(linked));
   }
@@ -610,7 +665,8 @@ function actJoinTeam_(p) {
 
   var coach = {
     id: Utilities.getUuid(), fullName: String(d.fullName).trim().slice(0, 80), email: email,
-    passwordHash: hashPw_(String(d.password)), active: 'TRUE', createdAt: nowIso_(), teamId: t.id, role: 'coach'
+    passwordHash: hashPw_(String(d.password)), active: 'TRUE', createdAt: nowIso_(), teamId: t.id, role: 'coach',
+    username: cleanUser_(d.username)
   };
   appendObject_('Coaches', coach);
   return D(sessionOut_(coach));
@@ -621,7 +677,7 @@ function actTeam_(p) {
   if (!t) return E(404, 'Отборът не е намерен.');
   var plan = planOf_(t);
   var members = activeCoaches_(t.id).map(function (c) {
-    return { id: c.id, fullName: c.fullName, email: c.email, role: c.role || 'coach', createdAt: nn_(c.createdAt) };
+    return { id: c.id, fullName: c.fullName, email: c.email, username: c.username || '', role: c.role || 'coach', createdAt: nn_(c.createdAt) };
   });
   var kids = readObjects_('Children').filter(function (c) { return String(c.teamId) === String(t.id) && nb_(c.isActive); }).length;
   return D({

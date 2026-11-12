@@ -2,9 +2,9 @@
    Файловете на сайта (CSS/JS/иконки/шрифтове) се пазят локално → второто
    отваряне е моментално. Страницата (index.html) винаги се взима свежа,
    ако има интернет. Заявките към API (/exec) НЕ се кешират. */
-const CACHE = 'sws-v40';
-const CORE = ['./', 'index.html', 'css/styles.css?v=40', 'css/landing.css?v=40', 'css/app.css?v=40', 'css/mobile.css?v=40',
-  'js/api.js?v=40', 'js/app.js?v=40', 'js/coach.js?v=40', 'js/parent.js?v=40', 'js/landing.js?v=40', 'manifest.json'];
+const CACHE = 'sws-v41';
+const CORE = ['./', 'index.html', 'css/styles.css?v=41', 'css/landing.css?v=41', 'css/app.css?v=41', 'css/mobile.css?v=41',
+  'js/api.js?v=41', 'js/app.js?v=41', 'js/coach.js?v=41', 'js/parent.js?v=41', 'js/landing.js?v=41', 'manifest.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));

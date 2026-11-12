@@ -79,9 +79,9 @@ const API = (() => {
 
   function startSession(r) {
     setToken(r.token);
-    setUser({ id: r.coachId, name: r.fullName, email: r.email,
+    setUser({ id: r.coachId, name: r.fullName, email: r.email, username: r.username || '',
       teamId: r.teamId, teamName: r.teamName, role: r.role, teams: r.teams || [] });
-    try { const m = JSON.parse(ls.get(LS_TEAM) || '{}'); m[String(r.email || '').toLowerCase()] = r.teamId; ls.set(LS_TEAM, JSON.stringify(m)); } catch {}
+    try { const m = JSON.parse(ls.get(LS_TEAM) || '{}'); m[String(r.email || '').toLowerCase()] = r.teamId; if (r.username) m[String(r.username).trim().toLowerCase()] = r.teamId; ls.set(LS_TEAM, JSON.stringify(m)); } catch {}
     ls.del(LS_BOOT); boot = null; rcClear();
     return r;
   }
@@ -216,9 +216,10 @@ const API = (() => {
     onBoot(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
     // ---- Auth ----
-    async login(email, password) {
-      return startSession(await call('login', { email, password, teamId: lastTeamFor(email) }, false));
+    async login(login, password) {
+      return startSession(await call('login', { login, password, teamId: lastTeamFor(login) }, false));
     },
+    async updateProfile(dto) { return startSession(await call('updateProfile', { data: dto })); },
     async register(dto) { return startSession(await call('register', { data: dto }, false)); },
     async joinTeam(dto) { return startSession(await call('joinTeam', { data: dto }, false)); },
     inviteInfo: (code) => call('inviteInfo', { code }, false),
