@@ -376,14 +376,16 @@
   const firstName = (n) => String(n || 'Треньор').split(' ')[0];
 
   /* ---------- Метри: „4x6, 5x8" дължини × басейна ---------- */
+  // „200 крака кроул" = 200 метра · „4x6 кроул" = 4 пъти по 6 дължини (старият запис) · „6 дължини" = дължини
   function parseSets(txt) {
     const out = { lengths: 0, meters: 0, bad: [] };
     String(txt || '').split(/[,;+\n]+/).forEach(tok => {
       const t = tok.trim().toLowerCase(); if (!t) return;
-      const m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/) || t.match(/^()(\d{1,4})\s*(.*)$/);
+      let m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/);
+      if (m) { if (/^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '')) out.meters += +m[1] * +m[2]; else out.lengths += +m[1] * +m[2]; return; }
+      m = t.match(/^(\d{1,4})\s*(.*)$/);
       if (!m) { out.bad.push(tok.trim()); return; }
-      const reps = m[1] ? +m[1] : 1, n = +m[2];
-      if (/^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '')) out.meters += reps * n; else out.lengths += reps * n;
+      if (/^дълж/i.test(m[2] || '')) out.lengths += +m[1]; else out.meters += +m[1];
     });
     return out;
   }
@@ -496,21 +498,21 @@
 
   // най-честите серии в тренировката (за общото поле „Какво плуваха")
   const commonSets = (parts) => { const c = {}; parts.forEach(p => { if (p.sets) c[p.sets] = (c[p.sets] || 0) + 1; }); return Object.keys(c).sort((a, b) => c[b] - c[a])[0] || ''; };
-  const prettySets = (t) => String(t || '').replace(/(\d)\s*[xх*]\s*(\d)/gi, '$1×$2').replace(/\s*,\s*/g, ' · ');
+  const prettySets = (t) => String(t || '').replace(/(^|,\s*)(\d{1,4})м(?=\s|,|$)/g, '$1$2 м').replace(/(\d)\s*[xх*]\s*(\d)/gi, '$1×$2').replace(/\s*,\s*/g, ' · ');
   /* ---------- Ред за плувец в тренировка ---------- */
   function kidRow(p, opts = {}) {
     const alert = p.medicalAlert ? `<button type="button" class="kid-alert" data-alert="${esc(p.medicalAlert)}" title="${esc(p.medicalAlert)}" aria-label="Здравно предупреждение">${I.alert}</button>` : '';
     const sop = p.specialNeeds ? `<span class="tag tag-sop" title="${esc(p.specialNeeds)}">СОП</span>` : '';
     const abs = p.absStreak >= 2 ? `<span class="tag tag-warn" title="Поредни отсъствия">${p.absStreak}× отс.</span>` : '';
     const notes = [p.swamWhat, p.dailyProgress, p.parentNote].filter(Boolean).length;
-    return `<div class="krow" data-cid="${p.childId}">
-      ${avatar(p.firstName || p.childName, p.lastName || '')}
+    // Натискане на детето (снимка/име) → неговите серии, настроение и бележки
+    return `<div class="krow ${opts.details ? 'krow-tap' : ''}" data-cid="${p.childId}">
+      ${opts.details ? `<div class="krow-open" role="button" tabindex="0" data-more aria-label="Серии, настроение и бележки за ${esc(p.childName)}">` : ''}${avatar(p.firstName || p.childName, p.lastName || '')}
       <div class="krow-main">
-        <div class="krow-name">${esc(p.childName)} ${alert}</div>
+        <div class="krow-name">${esc(p.childName)} ${opts.details ? `<span class="krow-chev">${I.chevR}</span>` : ''}${alert}</div>
         ${p.sets ? `<div class="krow-sets">${esc(prettySets(p.sets))}</div>` : ''}
-        <div class="krow-meta">${sop}${abs}${p.meters ? `<span class="tag tag-m">🏊 ${fmtM(p.meters)}${p.kcal ? ` · 🔥 ${p.kcal}` : ''}</span>` : ''}${p.mood ? `<span>${MOOD_EMOJI[p.mood] || ''}</span>` : ''}${notes ? `<span class="subtle">${I.edit}${notes}</span>` : ''}</div>
-      </div>
-      ${opts.details ? `<button type="button" class="btn-icon btn-ghost krow-more" data-more aria-label="Бележки за ${esc(p.childName)}">${I.edit}</button>` : ''}
+        <div class="krow-meta">${sop}${abs}${p.meters ? `<span class="tag tag-m">🏊 ${fmtM(p.meters)}${p.kcal ? ` · 🔥 ${p.kcal}` : ''}</span>` : ''}${p.mood ? `<span>${MOOD_EMOJI[p.mood] || ''}</span>` : ''}${notes ? `<span class="subtle">📝 ${notes}</span>` : ''}${opts.details && !p.sets && !notes && !p.mood ? `<span class="krow-hint">серии, настроение, бележки</span>` : ''}</div>
+      </div>${opts.details ? '</div>' : ''}
       ${attButtons(p.attended)}
     </div>`;
   }
@@ -1485,7 +1487,7 @@
       ${parts.length ? `<section class="sd-sec">
         <div class="sd-head"><strong><span class="sd-n">2</span>Какво плуваха</strong><small class="sd-saved" id="sdSaved"></small></div>
         ${setsField('sd_sets', commonSets(parts), s.poolLength)}
-        <p class="hint">Записва се само — за всички, които дойдоха. Някой плува различно? ✎ до името му.</p>
+        <p class="hint">Записва се само — за всички, които дойдоха. Някой плува различно? Натисни детето.</p>
       </section>` : ''}`;
     $('#modal-host .modal-body').innerHTML = body;
 
@@ -1592,51 +1594,51 @@
     try { await API.deleteSession(s.id); toast('Изтрито', 'ok'); refreshCal(); after(); } catch (e) { err(e); }
   }
 
-  /* ---------- Конструктор на тренировката: серии × дължини × стил → метри, калории, време ----------
-     Пази се като текст „4x6 кроул, 2x10 гръб, 4x50м крака" (същото поле като преди),
-     но треньорът цъка, вместо да пише. Може и да пише сам — превключва се с „✎ Пиши сам". */
-  const STYLES = [['кроул', '🏊'], ['гръб', '🔙'], ['бруст', '🐸'], ['делфин', '🦋'], ['крака', '🦵'], ['ръце', '💪'], ['игри', '🎈'], ['', '—']];
-  const STYLE_MET = { 'делфин': 9.5, 'бруст': 5.3, 'гръб': 4.8, 'крака': 4.0, 'ръце': 4.5, 'игри': 3.5, 'кроул': 5.8, '': 5.8 };
-  const styleOf = (rest) => { const t = String(rest || '').toLowerCase(); return ['делфин', 'бруст', 'гръб', 'крака', 'ръце', 'игри', 'кроул'].find(k => t.includes(k.slice(0, 4))) || ''; };
+  /* ---------- Конструктор на тренировката ----------
+     Всяка серия: „2 × 2 дължини" + свободно „какво" („крака кроул", „само крака, гребане с едната ръка").
+     Думите отдолу само помагат — може да се пише всичко. Пази се като текст „2x2 крака кроул, 4x1 кроул". */
+  const WORDS = ['крака', 'ръце', 'цяло', 'упражнение', 'кроул', 'гръб', 'бруст', 'делфин', 'с дъска', 'с плавници', 'дишане', 'свободно'];
+  const STYLE_MET = { 'делфин': 9.5, 'бруст': 5.3, 'гръб': 4.8, 'крака': 4.0, 'ръце': 4.5, 'упражн': 4.5, 'игри': 3.5, 'кроул': 5.8, '': 5.8 };
+  const styleOf = (rest) => { const t = String(rest || '').toLowerCase(); return ['делфин', 'бруст', 'гръб', 'крака', 'ръце', 'упражн', 'игри', 'кроул'].find(k => t.includes(k.slice(0, 4))) || ''; };
   const kcalOf = (sets, pool, kg = 30, adult = false) => {
     let k = 0;
     String(sets || '').split(/[,;+\n]+/).forEach(tok => {
       const t = tok.trim().toLowerCase(); if (!t) return;
-      const m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/) || t.match(/^()(\d{1,4})\s*(.*)$/); if (!m) return;
-      const reps = m[1] ? +m[1] : 1, n = +m[2], rest = m[3] || '';
-      const meters = /^(м|m|метра|метр)(?![a-zа-я])/i.test(rest) ? reps * n : reps * n * (pool || 25);
+      const meters = metersOf(t, pool) || 0;
+      const rest = t.replace(/^\d{1,3}\s*[x×х*]\s*\d{1,4}\s*/, '').replace(/^\d{1,4}\s*/, '');
       k += (STYLE_MET[styleOf(rest)] || 5.8) * kg * (meters / 100 * (adult ? 2.5 : 3) / 60);
     });
     return Math.round(k);
   };
   const minutesOf = (m, adult) => Math.round(m / 100 * (adult ? 2.5 : 3));
-  const rowsFrom = (txt) => {
+  // Всяка серия е „метри + какво". Старите „4x6 кроул" се превръщат в метри по басейна.
+  const rowsFrom = (txt, pool = 25) => {
     const rows = [];
     for (const tok of String(txt || '').split(/[,;+\n]+/)) {
       const t = tok.trim(); if (!t) continue;
-      const m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/i) || t.match(/^()(\d{1,4})\s*(.*)$/);
+      let m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/i);
+      if (m) { const inM = /^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || ''); rows.push({ m: +m[1] * +m[2] * (inM ? 1 : pool), txt: (m[3] || '').replace(/^(метра|метр|м|m)(?![a-zа-я])/i, '').trim() }); continue; }
+      m = t.match(/^(\d{1,4})\s*(.*)$/);
       if (!m) return null;
-      const rest = m[3] || '', inM = /^(м|m|метра|метр)(?![a-zа-я])/i.test(rest);
-      const st = styleOf(rest);
-      const extra = rest.replace(/^(метра|метр|м|m)(?![a-zа-я])/i, '').trim();
-      if (extra && !st) return null;                       // непознат текст → режим „пиши сам"
-      rows.push({ r: m[1] ? +m[1] : 1, n: +m[2], u: inM ? 'm' : 'l', st });
+      if (/^дълж/i.test(m[2] || '')) { rows.push({ m: +m[1] * pool, txt: m[2].replace(/^дължин[аи]?/i, '').trim() }); continue; }
+      rows.push({ m: +m[1], txt: (m[2] || '').replace(/^(метра|метр|м|m)(?![a-zа-я])/i, '').trim() });
     }
     return rows;
   };
-  const rowsText = (rows) => rows.filter(x => x.r > 0 && x.n > 0).map(x => `${x.r}x${x.n}${x.u === 'm' ? 'м' : ''}${x.st ? ' ' + x.st : ''}`).join(', ');
+  const cleanTxt = (t) => String(t || '').replace(/[,;+\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const rowsText = (rows) => rows.filter(x => x.m > 0).map(x => `${x.m}м${cleanTxt(x.txt) ? ' ' + cleanTxt(x.txt) : ''}`).join(', ');
 
   // who: { kg, adult } — за калориите (на конкретно дете) или null = „дете ~30 кг"
   function setsField(id, value, pool, who) {
     return `<div class="field wb" id="${id}_wb" data-pool="${pool || 25}">
-      <div class="wb-h"><label>Какво плува</label><button type="button" class="wb-mode" data-mode>✎ Пиши сам</button></div>
+      <div class="wb-h"><label>Какво плува</label><button type="button" class="wb-mode" data-mode>Като текст</button></div>
       <input type="hidden" id="${id}" value="${esc(value || '')}">
       <div class="wb-rows"></div>
-      <div class="wb-text" hidden><input class="input" placeholder="напр. 4x6 кроул, 2x10 гръб, 4x50м крака" autocomplete="off">
-        <span class="hint">4x6 = 4 пъти по 6 дължини · 4x50м = в метри · стил след числата</span></div>
+      <div class="wb-text" hidden><textarea class="textarea" rows="4" placeholder="200 крака кроул&#10;200 крака гръб&#10;50 ръце кроул"></textarea>
+        <span class="hint">Всеки ред: метри и какво — „200 крака кроул"</span></div>
       <div class="wb-add">
         <button type="button" class="btn btn-soft btn-sm" data-add>${I.plus} Серия</button>
-        ${['4x6 кроул', '2x10 гръб', '4x4 крака', '1x20'].map(x => `<button type="button" class="chip-btn" data-q="${x}">${x.replace('x', '×')}</button>`).join('')}
+        ${['200 крака кроул', '200 крака гръб', '50 крака кроул', '50 крака гръб', '100 кроул'].map(x => `<button type="button" class="chip-btn" data-q="${x}">${x}</button>`).join('')}
       </div>
       <div class="wb-sum" id="${id}_out"></div>
       <span class="hint">Басейн ${pool || 25} м${who ? '' : ' · калориите са за дете ~30 кг'}</span>
@@ -1644,77 +1646,89 @@
   }
   function bindSetsField(id, pool, who) {
     const box = $('#' + id + '_wb'), hid = $('#' + id), out = $('#' + id + '_out');
-    const rowsBox = $('.wb-rows', box), textBox = $('.wb-text', box), txt = $('input', textBox), modeBtn = $('[data-mode]', box);
+    const rowsBox = $('.wb-rows', box), textBox = $('.wb-text', box), txt = $('textarea', textBox), modeBtn = $('[data-mode]', box);
     pool = pool || 25;
     const kg = who?.kg || 30, adult = !!who?.adult;
-    let rows = rowsFrom(hid.value);
+    let rows = rowsFrom(hid.value, pool);
     let textMode = rows === null;
     if (!rows) rows = [];
+    let act = rows.length - 1;                                   // серията, на която са думите отдолу
     const paintSum = () => {
       const v = hid.value.trim();
       if (!v) { out.innerHTML = ''; return; }
       const r = parseSets(v);
-      if (r.bad.length) { out.innerHTML = `<span class="txt-red">Не разбирам „${esc(r.bad[0])}" — пиши така: 4x6 кроул</span>`; return; }
+      if (r.bad.length) { out.innerHTML = `<span class="txt-red">Не разбирам „${esc(r.bad[0])}" — започни с метрите: 200 крака кроул</span>`; return; }
       const m = Math.round(r.lengths * pool + r.meters);
       out.innerHTML = `<span class="wb-big">🏊 <b>${fmtM(m)}</b></span><span>🔥 ≈ <b>${kcalOf(v, pool, kg, adult)}</b> kcal</span><span>⏱ ≈ ${minutesOf(m, adult)} мин</span>`;
     };
-    const sync = () => { hid.value = textMode ? txt.value.trim() : rowsText(rows); paintSum(); hid.dispatchEvent(new Event('input')); };
-    const rowHtml = (x, i) => `<div class="wb-row" data-i="${i}">
-        <div class="wb-num"><button type="button" data-d="r:-1" aria-label="по-малко">−</button><input type="number" inputmode="numeric" min="1" max="99" value="${x.r}" data-f="r" aria-label="Пъти"><button type="button" data-d="r:1" aria-label="повече">+</button></div>
-        <span class="wb-x">×</span>
-        <div class="wb-num"><button type="button" data-d="n:-1" aria-label="по-малко">−</button><input type="number" inputmode="numeric" min="1" max="2000" value="${x.n}" data-f="n" aria-label="Колко"><button type="button" data-d="n:1" aria-label="повече">+</button></div>
-        <button type="button" class="wb-unit" data-u>${x.u === 'm' ? 'метра' : x.n === 1 ? 'дължина' : 'дължини'}</button>
-        <select class="wb-st" data-f="st" aria-label="Стил">${STYLES.map(([k]) => `<option value="${k}" ${x.st === k ? 'selected' : ''}>${k || 'без стил'}</option>`).join('')}</select>
-        <button type="button" class="wb-del" data-del aria-label="Махни">${I.x}</button>
-        <small class="wb-rm">${fmtM(Math.round(x.r * x.n * (x.u === 'm' ? 1 : pool)))}</small>
+    const sync = () => { hid.value = textMode ? txt.value.split('\n').map(x => x.trim()).filter(Boolean).join(', ') : rowsText(rows); paintSum(); hid.dispatchEvent(new Event('input')); };
+    const lenOf = (x) => { const l = x.m / pool; return Number.isInteger(l) ? `${l} ${l === 1 ? 'дължина' : 'дължини'}` : ''; };
+    const has = (t, w) => (' ' + String(t || '').toLowerCase() + ' ').includes(' ' + w + ' ');
+    const rowHtml = (x, i) => `<div class="wb-row ${i === act ? 'is-act' : ''}" data-i="${i}">
+        <div class="wb-line">
+          <div class="wb-num wb-num-m"><button type="button" data-d="-1" aria-label="по-малко">−</button><input type="number" inputmode="numeric" min="5" max="5000" step="25" value="${x.m}" data-f="m" aria-label="Метри"><button type="button" data-d="1" aria-label="повече">+</button></div>
+          <span class="wb-mu">м</span>
+          <input class="input wb-what" data-f="txt" value="${esc(x.txt || '')}" placeholder="какво — крака кроул…" autocomplete="off" enterkeyhint="done">
+          <button type="button" class="wb-del" data-del aria-label="Махни серията">${I.x}</button>
+        </div>
+        ${i === act ? `<div class="wb-words">${WORDS.map(w => `<button type="button" class="${has(x.txt, w) ? 'on' : ''}" data-w="${w}">${w}</button>`).join('')}
+          <span class="wb-len">${lenOf(x)}</span></div>` : ''}
       </div>`;
     const paintRows = () => {
-      rowsBox.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="wb-empty">Добави серия или избери готова отдолу.</p>';
+      rowsBox.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="wb-empty">Натисни „+ Серия" или избери готова отдолу.</p>';
     };
     const paintMode = () => {
       rowsBox.hidden = textMode; textBox.hidden = !textMode;
-      $('.wb-add', box).querySelector('[data-add]').hidden = textMode;
-      modeBtn.textContent = textMode ? '☰ С бутони' : '✎ Пиши сам';
-      if (textMode) txt.value = hid.value; else paintRows();
+      $('[data-add]', box).hidden = textMode;
+      modeBtn.textContent = textMode ? 'С бутони' : 'Като текст';
+      if (textMode) txt.value = hid.value.split(/\s*,\s*/).filter(Boolean).join('\n'); else paintRows();
     };
-    const step = (i, f, d) => {
-      const x = rows[i]; const big = f === 'n' && x.u === 'm' ? (x.n >= 100 ? 50 : 25) : 1;
-      x[f] = Math.max(1, Math.min(f === 'r' ? 99 : 2000, x[f] + d * big));
-    };
+    const setAct = (i) => { if (i === act) return; act = i; paintRows(); };
+    rowsBox.addEventListener('focusin', (e) => { const row = e.target.closest('.wb-row'); if (row && e.target.matches('.wb-what')) { const i = +row.dataset.i; if (i !== act) { act = i; paintRows(); const inp = $(`.wb-row[data-i="${i}"] .wb-what`, rowsBox); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } } });
     rowsBox.addEventListener('click', (e) => {
       const row = e.target.closest('.wb-row'); if (!row) return;
-      const i = +row.dataset.i;
-      const db = e.target.closest('[data-d]');
-      if (db) {                                            // ± на място — без пречертаване, без трептене
-        const [f, d] = db.dataset.d.split(':'); step(i, f, +d); const x = rows[i];
-        $(`input[data-f="${f}"]`, row).value = x[f];
-        $('.wb-rm', row).textContent = fmtM(Math.round(x.r * x.n * (x.u === 'm' ? 1 : pool)));
-        if (x.u !== 'm') $('[data-u]', row).textContent = x.n === 1 ? 'дължина' : 'дължини';
+      const i = +row.dataset.i, x = rows[i];
+      const db = e.target.closest('[data-d]'), w = e.target.closest('[data-w]');
+      if (db) {                                            // ± по една дължина на басейна (до 100 м), после по 50
+        const d = +db.dataset.d, st = x.m < 100 || (x.m === 100 && d < 0) ? pool : 50;
+        x.m = Math.max(st, Math.min(5000, Math.round((x.m + d * st) / st) * st));
+        $('input[data-f="m"]', row).value = x.m; const ln = $('.wb-len', row); if (ln) ln.textContent = lenOf(x);
+        if (i !== act) setAct(i);
         return sync();
       }
-      else if (e.target.closest('[data-u]')) { const x = rows[i]; x.u = x.u === 'm' ? 'l' : 'm'; x.n = x.u === 'm' ? Math.max(25, Math.round(x.n * pool / 25) * 25) : Math.max(1, Math.round(x.n / pool)); }
-      else if (e.target.closest('[data-del]')) rows.splice(i, 1);
+      if (w) {                                             // дума: вкл./изкл. в „какво"
+        const word = w.dataset.w;
+        x.txt = has(x.txt, word) ? (' ' + x.txt + ' ').replace(new RegExp(' ' + word + ' ', 'i'), ' ').trim() : ((x.txt || '').trim() + ' ' + word).trim();
+        $('.wb-what', row).value = x.txt; w.classList.toggle('on', has(x.txt, word));
+        return sync();
+      }
+      if (e.target.closest('[data-del]')) { rows.splice(i, 1); act = Math.min(act, rows.length - 1); }
+      else if (!e.target.closest('input')) { setAct(i); return; }
       else return;
       paintRows(); sync();
     });
     rowsBox.addEventListener('input', (e) => {
       const row = e.target.closest('.wb-row'); if (!row) return;
       const x = rows[+row.dataset.i], f = e.target.dataset.f;
-      if (f === 'st') x.st = e.target.value;
-      else { const v = parseInt(e.target.value, 10); if (v > 0) x[f] = Math.min(f === 'r' ? 99 : 2000, v); }
-      $('.wb-rm', row).textContent = fmtM(Math.round(x.r * x.n * (x.u === 'm' ? 1 : pool)));
-      if (f !== 'st') { const u = $('[data-u]', row); if (u && x.u !== 'm') u.textContent = x.n === 1 ? 'дължина' : 'дължини'; }
+      if (f === 'txt') { x.txt = e.target.value; $$('.wb-words [data-w]', row).forEach(b => b.classList.toggle('on', has(x.txt, b.dataset.w))); }
+      else { const v = parseInt(e.target.value, 10); if (v > 0) x.m = Math.min(5000, v); const ln = $('.wb-len', row); if (ln) ln.textContent = lenOf(x); }
       sync();
     });
+    rowsBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.wb-what')) { e.preventDefault(); e.target.blur(); } });
     txt.addEventListener('input', sync);
-    $('[data-add]', box).onclick = () => { const last = rows[rows.length - 1]; rows.push(last ? { ...last } : { r: 4, n: 4, u: 'l', st: 'кроул' }); paintRows(); sync(); const ins = $$('.wb-row input[data-f="r"]', rowsBox); ins[ins.length - 1]?.focus(); };
+    $('[data-add]', box).onclick = () => {
+      const last = rows[rows.length - 1];
+      rows.push(last ? { m: last.m, txt: '' } : { m: 50, txt: '' });
+      act = rows.length - 1; paintRows(); sync();
+      $(`.wb-row[data-i="${act}"] .wb-what`, rowsBox)?.focus();
+    };
     $$('[data-q]', box).forEach(b => b.onclick = () => {
-      if (textMode) { txt.value = (txt.value.trim() ? txt.value.trim().replace(/[,+]\s*$/, '') + ', ' : '') + b.dataset.q; }
-      else { rows.push(...rowsFrom(b.dataset.q)); paintRows(); }
+      if (textMode) { txt.value = (txt.value.trim() ? txt.value.trim() + '\n' : '') + b.dataset.q; }
+      else { rows.push(...rowsFrom(b.dataset.q, pool)); act = rows.length - 1; paintRows(); }
       sync();
     });
     modeBtn.onclick = () => {
-      if (textMode) { const r = rowsFrom(txt.value); if (r === null) return toast('Това не става с бутони — остави го като текст', 'err'); rows = r; }
+      if (textMode) { const r = rowsFrom(hid.value, pool); if (r === null) return toast('Всеки ред трябва да започва с метрите — напр. 200 крака кроул', 'err'); rows = r; act = rows.length - 1; }
       textMode = !textMode; paintMode(); sync();
     };
     paintMode(); paintSum();

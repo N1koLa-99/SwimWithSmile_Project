@@ -750,15 +750,20 @@ function poolOk_(v) {
 }
 // Връща { lengths, meters (направо в метри, напр. 4x50м), bad: [неразчетени] }
 function parseSets_(txt) {
+  // „200 крака кроул" = 200 метра · „4x6 кроул" = 4 пъти по 6 дължини · „6 дължини" = дължини
   var out = { lengths: 0, meters: 0, bad: [] };
   String(txt || '').split(/[,;+\n]+/).forEach(function (tok) {
     var t = tok.trim().toLowerCase();
     if (!t) return;
-    var m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/) || t.match(/^()(\d{1,4})\s*(.*)$/);
+    var m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/);
+    if (m) {
+      var reps = Number(m[1]), n = Number(m[2]);
+      if (/^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '')) out.meters += reps * n; else out.lengths += reps * n;
+      return;
+    }
+    m = t.match(/^(\d{1,4})\s*(.*)$/);
     if (!m) { out.bad.push(tok.trim()); return; }
-    var reps = m[1] ? Number(m[1]) : 1, n = Number(m[2]);
-    var inMeters = /^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '');
-    if (inMeters) out.meters += reps * n; else out.lengths += reps * n;
+    if (/^дълж/i.test(m[2] || '')) out.lengths += Number(m[1]); else out.meters += Number(m[1]);
   });
   return out;
 }
@@ -772,7 +777,7 @@ function metersFor_(sets, pool) {
 // Активното време е от метрите: ~3 мин на 100 м (деца и начинаещи), 2,5 мин за възрастни.
 var SWIM_MET = [
   [/делф|бътерф|butter/, 9.5], [/бруст|жаба|breast/, 5.3], [/гръб|back/, 4.8],
-  [/крак|дъск|kick/, 4.0], [/ръц|pull/, 4.5], [/игр|свобод.*игр|плъзг|звезд/, 3.5], [/кроул|свобод|free/, 5.8]
+  [/крак|дъск|kick/, 4.0], [/упражн|drill/, 4.5], [/ръц|pull/, 4.5], [/игр|свобод.*игр|плъзг|звезд/, 3.5], [/кроул|свобод|free/, 5.8]
 ];
 function swimMet_(rest) {
   var t = String(rest || '').toLowerCase();
@@ -802,10 +807,8 @@ function kcalFor_(sets, pool, c) {
   var minPer100 = adult ? 2.5 : 3, kcal = 0;
   String(sets).split(/[,;+\n]+/).forEach(function (tok) {
     var t = tok.trim().toLowerCase(); if (!t) return;
-    var m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/) || t.match(/^()(\d{1,4})\s*(.*)$/);
-    if (!m) return;
-    var reps = m[1] ? Number(m[1]) : 1, n = Number(m[2]), rest = m[3] || '';
-    var meters = /^(м|m|метра|метр)(?![a-zа-я])/i.test(rest) ? reps * n : reps * n * (pool || DEFAULT_POOL);
+    var meters = metersFor_(t, pool) || 0;
+    var rest = t.replace(/^\d{1,3}\s*[x×х*]\s*\d{1,4}\s*/, '').replace(/^\d{1,4}\s*/, '');
     kcal += swimMet_(rest) * kg * (meters / 100 * minPer100 / 60);
   });
   return kcal > 0 ? Math.round(kcal) : null;

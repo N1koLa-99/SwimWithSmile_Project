@@ -991,3 +991,35 @@ details.more[open] { padding-bottom: 6px; }
 .sd-sec .wb { margin-top: 0; }
 @media (max-width: 560px) { #modal-host .sd-hero { padding-right: 50px; } }
 .sd-sec .wb-h { justify-content: flex-end; margin-bottom: 4px; } .sd-sec .wb-h label { display: none; }
+
+/* ================= v52: серии със свободно „какво" + детето се натиска цялото ================= */
+.wb-row { display: grid; gap: 8px; grid-template-columns: 1fr; grid-template-areas: none; padding: 10px; border: 2px solid transparent; }
+.wb-row.is-act { border-color: color-mix(in srgb, var(--brand) 35%, #fff); }
+.wb-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.wb-line .wb-rm { margin-left: auto; }
+.wb-line .wb-del { margin-left: 2px; }
+.wb-row > .wb-num, .wb-row > .wb-x, .wb-row > .wb-unit, .wb-row > .wb-st, .wb-row > .wb-rm, .wb-row > .wb-del { grid-area: auto; }
+.wb-what { height: 42px; font-size: .95rem; background: #fff; }
+.wb-words { display: flex; flex-wrap: wrap; gap: 6px; }
+.wb-words button { height: 30px; padding: 0 11px; border-radius: 99px; background: var(--sky-50); color: var(--ink-2); font-size: .8rem; font-weight: 700; border: 1.5px solid transparent; }
+.wb-words button.on { background: color-mix(in srgb, var(--brand) 12%, #fff); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, #fff); }
+.wb-text textarea { min-height: 96px; }
+@media (min-width: 560px) { .wb-row { grid-template-columns: 1fr; grid-template-areas: none; } }
+
+.krow-tap .krow-open { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; cursor: pointer; border-radius: 14px; padding: 4px 6px 4px 2px; margin: -4px 0 -4px -2px; outline: none; }
+.krow-tap .krow-open:hover, .krow-tap .krow-open:focus-visible { background: var(--sky-50); }
+.krow-tap .krow-open:active { background: var(--sky-100); }
+.krow-chev { display: inline-grid; place-items: center; vertical-align: -3px; color: var(--muted); }
+.krow-chev svg { width: 16px; height: 16px; }
+.krow-hint { font-size: .78rem; color: var(--muted); }
+.krow-tap .krow-open .krow-main { flex: 1; min-width: 0; }
+
+/* ================= v53: серия = метри + какво ================= */
+.wb-row { padding: 8px; gap: 6px; }
+.wb-line { flex-wrap: nowrap; gap: 6px; }
+.wb-num-m input { width: 54px; }
+.wb-mu { font-weight: 800; color: var(--ink-2); margin-left: -2px; }
+.wb-line .wb-what { flex: 1 1 auto; min-width: 0; height: 40px; }
+.wb-line .wb-del { margin-left: 0; flex-shrink: 0; }
+.wb-len { margin-left: auto; align-self: center; font-size: .78rem; font-weight: 700; color: var(--muted); }
+@media (max-width: 400px) { .wb-num-m button { width: 28px; } .wb-num-m input { width: 46px; } }
