@@ -1141,7 +1141,8 @@ function sessOut_(s, coaches, groups, countBy) {
     title: s.gcalKey ? String(s.notes || '').replace(/^От Google Calendar: /, '') || null : (!g.name && c && c.names.length ? namesTitle_(c.names) : null), fromCalendar: !!s.gcalKey,
     durationMin: num_(s.durationMin) || num_(g.durationMin) || 45,
     seriesId: nn_(s.seriesId), status: nn_(s.status), poolLength: sessionPool_(s), poolOverride: poolOk_(s.poolLength),
-    participantCount: c ? c.n : undefined, presentCount: c ? c.present : undefined, markedCount: c ? c.marked : undefined
+    participantCount: c ? c.n : undefined, presentCount: c ? c.present : undefined, markedCount: c ? c.marked : undefined,
+    kids: c ? c.names.slice(0, 12) : undefined
   };
 }
 
@@ -1333,7 +1334,7 @@ function actUpsertParticipant_(p) {
   });
   if (patch.sets) {
     var ps = parseSets_(patch.sets);
-    if (ps.bad.length) return E(400, 'Не разбирам „' + ps.bad[0] + '". Пиши така: 4x6, 5x8 (повторения × дължини) или 4x50м.');
+    if (ps.bad.length) return E(400, 'Не разбирам „' + ps.bad[0] + '". Пиши така: 200 крака кроул, 50 гръб.');
   }
   if (existing) {
     updateById_('Participants', existing.id, patch);
