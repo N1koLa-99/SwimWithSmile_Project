@@ -494,6 +494,8 @@
     };
   }
 
+  // най-честите серии в тренировката (за общото поле „Какво плуваха")
+  const commonSets = (parts) => { const c = {}; parts.forEach(p => { if (p.sets) c[p.sets] = (c[p.sets] || 0) + 1; }); return Object.keys(c).sort((a, b) => c[b] - c[a])[0] || ''; };
   const prettySets = (t) => String(t || '').replace(/(\d)\s*[xх*]\s*(\d)/gi, '$1×$2').replace(/\s*,\s*/g, ' · ');
   /* ---------- Ред за плувец в тренировка ---------- */
   function kidRow(p, opts = {}) {
@@ -696,7 +698,7 @@
         <a class="btn btn-ghost btn-sm" href="#/app/calendar" style="margin-top:12px">Целият график ${I.arrowR}</a>
       </section>`;
     $$('.up-item[data-sid]', side).forEach(b => b.onclick = () => sessionDetail(b.dataset.sid, drawToday));
-    $$('.up-item[data-gk]', side).forEach(b => b.onclick = () => gcalDetail(b.dataset.gk, drawToday));
+    $$('.up-item[data-gk]', side).forEach(b => b.onclick = () => openGcal(b.dataset.gk, drawToday));
   }
 
   /* ============================================================
@@ -873,7 +875,7 @@
           </div></div>`;
       }).join('')}</div>`;
       $$('.slot[data-sid]', body).forEach(el => el.onclick = () => sessionDetail(el.dataset.sid, refreshCal));
-      $$('.slot[data-gcal]', body).forEach(el => el.onclick = () => gcalDetail(el.dataset.gcal));
+      $$('.slot[data-gcal]', body).forEach(el => el.onclick = () => openGcal(el.dataset.gcal));
       bindBanner(known);
       const t = $('#agToday'); if (t && !body.dataset.scrolled) { body.dataset.scrolled = '1'; t.scrollIntoView({ block: 'center' }); }
       return;
@@ -958,7 +960,7 @@
       if (mo) { e.stopPropagation(); openDay(+mo.dataset.day); return; }
       if (!ev) return;
       e.stopPropagation();
-      if (ev.dataset.sid) sessionDetail(ev.dataset.sid, refreshCal); else if (ev.dataset.gcal) gcalDetail(ev.dataset.gcal);
+      if (ev.dataset.sid) sessionDetail(ev.dataset.sid, refreshCal); else if (ev.dataset.gcal) openGcal(ev.dataset.gcal);
     });
     bindBanner(known);
   }
@@ -1158,6 +1160,21 @@
   }
 
   // Събитие от Google Calendar: кой е това дете?
+  /* Натискане на събитие от Google: ако знаем кои деца са — отваря се направо като тренировка
+     (тихо се записва в графика). Само при непознато име питаме „Кой е?". */
+  async function openGcal(key, after) {
+    const ev = _gcalById[key]; if (!ev) return;
+    after = after || (() => { refreshCal(); if ($('#todaySessions')) drawToday(); });
+    const ready = ev.kind !== 'off' && !ev.allDay && (ev.childIds || []).length && !(ev.unknownNames || []).length;
+    if (!ready) return gcalDetail(key, after);
+    modal({ title: 'Тренировка', body: loading(3, 60), large: true });
+    try {
+      const r = await API.importCalendarEvents([{ key: ev.key, date: ev.date, startTime: ev.startTime, durationMin: ev.durationMin,
+        location: ev.location, title: ev.title, childIds: ev.childIds, childId: ev.childId }]);
+      ev.sessionId = r.items[0].sessionId; API.clearCache && API.clearCache();
+      sessionDetail(ev.sessionId, after); after();
+    } catch (e) { closeModal(); err(e); }
+  }
   async function gcalDetail(id, after) {
     const ev = _gcalById[id];
     if (!ev) return;
@@ -1212,11 +1229,12 @@
         <p class="subtle small" style="margin-top:14px">Събитието в Google Calendar не се променя.</p>`;
       const foot = $('#modal-host .modal-foot');
       if (foot) foot.innerHTML = `<button class="btn btn-ghost" data-close>Затвори</button>
-        <button class="btn btn-primary" id="gImport">${I.plus} В графика${people.length ? ` (${people.length})` : ''}</button>`;
+        <button class="btn btn-primary" id="gImport">${I.check} Продължи${people.length ? ` (${people.length})` : ''}</button>`;
       $$('#modal-host [data-close]').forEach(x => x.onclick = closeModal);
       $('#gImport').onclick = async (e) => {
         if (unknown.length && !await ask('Има непознати имена', `${unknown.map(x => '„' + x + '"').join(', ')} още не са свързани с картон. Да добавя ли тренировката само с ${people.length ? people.map(k => k.firstName).join(', ') : 'никого'}?`, 'Добави')) return;
-        importEvents([{ ...ev, childIds: people.map(k => k.id), childId: people[0]?.id || null }], after, e.currentTarget);
+        const r = await importEvents([{ ...ev, childIds: people.map(k => k.id), childId: people[0]?.id || null }], after, e.currentTarget);
+        if (r && r.items && r.items[0]) sessionDetail(r.items[0].sessionId, after);   // веднага към присъствието и сериите
       };
       $$('[data-rm]', body).forEach(x => x.onclick = () => { const i = people.findIndex(k => k.id === x.dataset.rm); if (i >= 0) people.splice(i, 1); paint(); });
       $$('[data-pick]', body).forEach(x => x.onclick = () => { openPick = openPick === +x.dataset.pick ? -1 : +x.dataset.pick; paint(); });
@@ -1277,7 +1295,7 @@
       footer: `<button class="btn btn-ghost" data-close>Затвори</button><button class="btn btn-primary" id="addOnDay">${I.plus} Добави</button>` });
     $('#addOnDay').onclick = () => { closeModal(); sessionForm(null, date); };
     $$('#modal-host .slot[data-sid]').forEach(el => el.onclick = () => sessionDetail(el.dataset.sid, refreshCal));
-    $$('#modal-host .slot[data-gcal]').forEach(el => el.onclick = () => gcalDetail(el.dataset.gcal));
+    $$('#modal-host .slot[data-gcal]').forEach(el => el.onclick = () => openGcal(el.dataset.gcal));
   }
 
   /* ---------- Форма за тренировка (с повторение) ---------- */
@@ -1442,32 +1460,40 @@
           <small>${esc(fmtDay(s.sessionDate))}</small>
           <small>${esc(s.coachName)}${s.location ? ' · ' + esc(s.location) : ''}</small>
         </div>
-        <div class="sd-m"><small>басейн ${s.poolLength || 25} м</small>${s.totalMeters ? `<b>${fmtM(s.totalMeters)}</b><small>общо${s.totalKcal ? ` · 🔥 ${s.totalKcal} kcal` : ''}</small>` : ''}</div>
+        <div class="sd-m" id="sdTotals"></div>
+        <div class="sd-menu"><button class="btn-icon btn-ghost" id="sdMenuBtn" aria-label="Още действия" title="Още">⋯</button>
+          <div class="sd-pop" id="sdPop" hidden>
+            <button id="sdEdit">${I.edit}<span>Редакция (час, дата, треньор)</span></button>
+            <button id="sdCancel">${cancelled ? I.refresh : I.ban}<span>${cancelled ? 'Възстанови' : 'Отмени тренировката'}</span></button>
+            <button id="sdDel" class="danger">${I.trash}<span>Изтрий</span></button>
+          </div></div>
       </div>
       ${s.notes && !s.fromCalendar ? `<p class="note">${esc(s.notes)}</p>` : ''}
-      <div class="act-row">
-        <button class="act" id="sdEdit"><span>${I.edit}</span>Редакция</button>
-        <button class="act" id="sdCancel"><span>${cancelled ? I.refresh : I.ban}</span>${cancelled ? 'Възстанови' : 'Отмени'}</button>
-        <button class="act act-red" id="sdDel"><span>${I.trash}</span>Изтрий</button>
-      </div>
-      <div class="sd-head">
-        <strong>Плувци <span class="badge" id="sdSum"></span></strong>
-        <div class="sd-add">
-          ${parts.some(p => p.attended === null) ? `<button class="btn btn-soft btn-sm" id="allIn">${I.check} Всички са тук</button>` : ''}
-          ${parts.length ? `<button class="btn btn-soft btn-sm" id="setsAll" title="Еднакви серии за всички присъстващи">🏊 Какво плуваха</button>` : ''}
-          ${addGroups.length ? `<select class="select select-sm" id="addGroup" aria-label="Добави група"><option value="">+ Група…</option>${addGroups.map(g => `<option value="${g.id}">${esc(g.name)} (${g.count})</option>`).join('')}</select>` : ''}
+
+      <section class="sd-sec">
+        <div class="sd-head">
+          <strong><span class="sd-n">1</span>Кой дойде <span class="badge" id="sdSum"></span></strong>
+          ${parts.some(p => p.attended === null) ? `<button class="btn btn-primary btn-sm" id="allIn">${I.check} Всички са тук</button>` : ''}
         </div>
-      </div>
-      <div class="ns-wrap sd-name"><input class="input" id="addName" type="text" placeholder="+ Добави по име (Enter)…" autocomplete="off" enterkeyhint="done"><div class="ns-box" id="addNameBox" hidden></div></div>
-      <div class="klist" id="partList">${parts.length ? parts.map(p => kidRow(p, { details: true })).join('') : emptyState(I.kids, 'Още няма плувци', 'Напиши име горе или добави цяла група.')}</div>
-      <p class="hint" style="margin-top:10px">✓ / ✗ се записва веднага · ✎ до името — серии, настроение, бележки</p>`;
+        <div class="klist" id="partList">${parts.length ? parts.map(p => kidRow(p, { details: true })).join('') : `<p class="subtle small" style="padding:6px 2px">Още няма плувци — добави отдолу.</p>`}</div>
+        <div class="sd-addrow">
+          <div class="ns-wrap sd-name"><input class="input" id="addName" type="text" placeholder="+ Добави дете (име и Enter)" autocomplete="off" enterkeyhint="done"><div class="ns-box" id="addNameBox" hidden></div></div>
+          ${addGroups.length ? `<select class="select select-sm" id="addGroup" aria-label="Добави група"><option value="">+ Група</option>${addGroups.map(g => `<option value="${g.id}">${esc(g.name)} (${g.count})</option>`).join('')}</select>` : ''}
+        </div>
+      </section>
+
+      ${parts.length ? `<section class="sd-sec">
+        <div class="sd-head"><strong><span class="sd-n">2</span>Какво плуваха</strong><small class="sd-saved" id="sdSaved"></small></div>
+        ${setsField('sd_sets', commonSets(parts), s.poolLength)}
+        <p class="hint">Записва се само — за всички, които дойдоха. Някой плува различно? ✎ до името му.</p>
+      </section>` : ''}`;
     $('#modal-host .modal-body').innerHTML = body;
 
     const list = $('#partList');
     const sum = () => { const c = attCount(list); $('#sdSum').textContent = c.total ? `${c.present}/${c.total}` : '0'; };
     sum();
     let dirty = false;
-    bindAtt(list, async (cid, v) => { await API.upsertParticipant(id, { childId: cid, attended: v }); dirty = true; });
+    bindAtt(list, async (cid, v) => { await API.upsertParticipant(id, { childId: cid, attended: v }); dirty = true; const p = parts.find(x => x.childId === cid); if (p) { p.attended = v; paintTotals(); } });
     list.addEventListener('attchange', sum);
     bindAlerts(list);
     $$('[data-more]', list).forEach(b => b.onclick = () => {
@@ -1477,8 +1503,51 @@
     // затваряне → обнови екрана отдолу, ако нещо е променено
     $$('#modal-host [data-close]').forEach(b => b.addEventListener('click', () => { if (dirty) after(); }));
 
+    // ⋯ меню
+    const pop = $('#sdPop');
+    $('#sdMenuBtn').onclick = (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; };
+    $('#modal-host .modal-body').addEventListener('click', (e) => { if (!pop.hidden && !e.target.closest('.sd-menu')) pop.hidden = true; });
     $('#sdEdit').onclick = () => sessionForm(s, null, after);
-    const sa = $('#setsAll'); if (sa) sa.onclick = () => setsForAll(s, parts, after);
+
+    // Общо: метри и калории на живо
+    const paintTotals = () => {
+      const pool = s.poolLength || 25;
+      let m = 0, k = 0;
+      parts.forEach(p => { if (p.attended === false || !p.sets) return; m += metersOf(p.sets, pool) || 0; k += kcalOf(p.sets, pool, p.kg || 30, p.adult); });
+      $('#sdTotals').innerHTML = m ? `<b>${fmtM(m)}</b><small>🔥 ≈ ${k} kcal · басейн ${pool} м</small>` : `<small>басейн ${pool} м</small>`;
+    };
+    paintTotals();
+    // „Какво плуваха" — авто-запис за всички присъстващи (без тези с различни серии)
+    if (parts.length) {
+      bindSetsField('sd_sets', s.poolLength);
+      const hid = $('#sd_sets'), saved = $('#sdSaved');
+      let common = commonSets(parts), timer = 0;
+      hid.addEventListener('input', () => {
+        clearTimeout(timer); saved.textContent = '';
+        timer = setTimeout(async () => {
+          const v = hid.value.trim();
+          if (v && parseSets(v).bad.length) return;
+          const who = parts.filter(p => p.attended !== false && (!p.sets || p.sets === common));
+          if (!who.length) return;
+          saved.textContent = 'Записвам…';
+          try {
+            await API.updateSets(id, who.map(p => ({ childId: p.childId, sets: v || null })));
+            who.forEach(p => { p.sets = v || null; p.meters = v ? metersOf(v, s.poolLength) : null; p.kcal = v ? kcalOf(v, s.poolLength || 25, p.kg || 30, p.adult) : null; paintKidSets(p); });
+            common = v; dirty = true; paintTotals(); saved.textContent = '✓ Записано';
+          } catch (e) { saved.textContent = ''; err(e); }
+        }, 700);
+      });
+    }
+    function paintKidSets(p) {
+      const row = $(`#partList [data-cid="${p.childId}"] .krow-main`); if (!row) return;
+      let line = $('.krow-sets', row);
+      if (!p.sets) { if (line) line.remove(); } else { if (!line) { line = document.createElement('div'); line.className = 'krow-sets'; row.firstElementChild.after(line); } line.textContent = prettySets(p.sets); }
+      const meta = $('.krow-meta', row); if (!meta) return;
+      let tag = $('.tag-m', meta);
+      if (!p.meters) { if (tag) tag.remove(); return; }
+      if (!tag) { tag = document.createElement('span'); tag.className = 'tag tag-m'; meta.prepend(tag); }
+      tag.textContent = `🏊 ${fmtM(p.meters)}${p.kcal ? ` · 🔥 ${p.kcal}` : ''}`;
+    }
     $('#sdCancel').onclick = async () => {
       if (!cancelled && !await ask('Отмяна на тренировката', 'Тренировката остава в графика, но се отбелязва като отменена и не се брои в посещаемостта.', 'Отмени тренировката', true)) return sessionDetail(id, after);
       try { await API.cancelSession(id, !cancelled); toast(cancelled ? 'Възстановена' : 'Отменена', 'ok'); refreshCal(); after(); sessionDetail(id, after); } catch (e) { err(e); }
@@ -1488,7 +1557,8 @@
     if (allIn) allIn.onclick = async () => {
       const boxes = $$('[data-att]', list).filter(b => b.dataset.att === '');
       boxes.forEach(b => paintAtt(b, '1')); sum(); busy(allIn, true);
-      try { await API.markAttendance(id, boxes.map(b => ({ childId: b.closest('[data-cid]').dataset.cid, attended: true }))); dirty = true; allIn.remove(); toast('Отбелязано', 'ok'); }
+      try { await API.markAttendance(id, boxes.map(b => ({ childId: b.closest('[data-cid]').dataset.cid, attended: true }))); dirty = true; allIn.remove(); toast('Отбелязано', 'ok');
+        boxes.forEach(b => { const p = parts.find(x => x.childId === b.closest('[data-cid]').dataset.cid); if (p) p.attended = true; }); paintTotals(); }
       catch (e) { boxes.forEach(b => paintAtt(b, '')); sum(); busy(allIn, false); err(e); }
     };
     const addName = $('#addName');

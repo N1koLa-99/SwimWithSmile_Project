@@ -969,3 +969,25 @@ details.more[open] { padding-bottom: 6px; }
 .alrt-names a { padding: 5px 10px; border-radius: 99px; background: #fff; border: 1px solid var(--sky-100); font-size: .85rem; font-weight: 600; color: var(--ink-2); }
 .alrt-names a:hover { border-color: var(--brand); color: var(--brand); }
 .up-item .g-badge { margin-left: auto; }
+
+/* ================= v51: тренировката — всичко на един екран ================= */
+#modal-host .sd-hero { position: relative; padding-right: 54px; }
+.sd-menu { position: absolute; top: 10px; right: 10px; }
+.sd-menu .btn-icon { width: 38px; height: 38px; font-size: 1.4rem; font-weight: 800; line-height: 1; color: var(--navy); background: rgba(255,255,255,.7); }
+.sd-pop { position: absolute; right: 0; top: 44px; z-index: 5; min-width: 250px; padding: 6px; border-radius: 16px; background: #fff; box-shadow: 0 16px 40px rgba(9, 25, 60, .18); border: 1px solid var(--sky-100); display: grid; }
+.sd-pop[hidden] { display: none; }
+.sd-pop button { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 11px; font-weight: 600; font-size: .92rem; color: var(--ink); text-align: left; }
+.sd-pop button:hover { background: var(--sky-50); }
+.sd-pop button svg { width: 18px; height: 18px; color: var(--ink-2); }
+.sd-pop button.danger, .sd-pop button.danger svg { color: var(--red); }
+#sdTotals:empty { display: none; }
+.sd-sec { margin-top: 14px; padding-top: 4px; }
+.sd-sec .sd-head { border-top: 0; padding: 6px 0 8px; }
+.sd-n { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--navy); color: #fff; font-size: .75rem; font-weight: 800; }
+.sd-addrow { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.sd-addrow .sd-name { flex: 1; margin: 0; }
+.sd-addrow .select-sm { flex: 0 0 auto; width: auto; max-width: 42%; }
+.sd-saved { color: var(--green, #12805a); font-weight: 700; font-size: .82rem; }
+.sd-sec .wb { margin-top: 0; }
+@media (max-width: 560px) { #modal-host .sd-hero { padding-right: 50px; } }
+.sd-sec .wb-h { justify-content: flex-end; margin-bottom: 4px; } .sd-sec .wb-h label { display: none; }
