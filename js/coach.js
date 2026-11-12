@@ -86,8 +86,18 @@
   route(/^\/app\/child\/([\w-]+)$/, async (id) => {
     if (!guard()) return;
     shell('children', `<div id="prof">${loading(1, 150)}</div>`);
-    let child, boot;
-    try { [child, boot] = await Promise.all([API.child(id), API.getBoot()]); } catch (e) { return err(e); }
+    // Моментално от кеша, после свежите данни (ако са различни)
+    let boot = API.peekBoot(), shown = null;
+    const cached = API.peek('child', { id });
+    if (cached && boot) { shown = JSON.stringify(cached); drawChild(cached, boot); }
+    try {
+      const [child, b] = await Promise.all([API.read('child', { id }), boot ? Promise.resolve(boot) : API.getBoot()]);
+      if (!$('#prof')) return;
+      if (JSON.stringify(child) !== shown) drawChild(child, b);
+    } catch (e) { if (!shown) return err(e); }
+  });
+  function drawChild(child, boot) {
+    if (!$('#prof')) return;
     _child = child;
     const g = (boot.groups || []).find(x => x.id === child.groupId);
     const st = child.stats || {};
@@ -114,7 +124,7 @@
             ${ePhone && ePhone !== phone ? `<a class="btn btn-glass btn-sm" href="${telHref(ePhone)}">${I.phone}<span>Спешен</span></a>` : ''}
           </div>
         </div>
-        <div class="ph2-stats">
+        <div class="ph2-stats ${st.meters ? 'has-m' : ''}">
           <div class="lvl-card"><span class="lvl-big">${lvl.icon || '💧'}</span><div><small>Ниво ${lvl.no || 1}</small><b>${esc(lvl.name || 'Капка')}</b>
             <span class="lvl-bar lvl-bar-lg"><i style="width:${lvl.progress || 0}%"></i></span>
             <small>${st.points || 0} точки${lvl.next ? ` · още ${lvl.next.min - (st.points || 0)} до ${lvl.next.icon} ${esc(lvl.next.name)}` : ' · най-високо ниво!'}</small></div></div>
@@ -122,6 +132,7 @@
           <div class="stat"><b>${st.streak || 0}</b><small>поредни идвания</small></div>
           <div class="stat"><b>${st.skills || 0}</b><small>умения</small></div>
           <div class="stat"><b>${st.awards || 0}</b><small>награди</small></div>
+          ${st.meters ? `<div class="stat"><b>${S.fmtM(st.meters)}</b><small>изплувани${st.meters30 ? ` · ${S.fmtM(st.meters30)} за 30 дни` : ''}</small></div>` : ''}
         </div>
       </section>
       ${child.medicalAlert ? `<div class="med-banner rise">${I.alert}<span><b>Внимание:</b> ${esc(child.medicalAlert)}</span></div>` : ''}
@@ -134,7 +145,7 @@
     const setTab = (t) => { profileTab.cur = t; $$('#tabs .tab').forEach(x => { x.classList.toggle('active', x.dataset.t === t); x.setAttribute('aria-selected', x.dataset.t === t); }); renderTab(t, child); };
     $$('#tabs .tab').forEach(b => b.onclick = () => setTab(b.dataset.t));
     setTab(['card','skills','sessions','progress','ach','comp'].includes(profileTab.cur) ? profileTab.cur : 'card');
-  });
+  }
   const reloadChild = () => { if (_child) S.render(); };
 
   async function renderTab(t, child) {
@@ -287,7 +298,7 @@
     const row = h => `<button class="hrow ${h.status === 'cancelled' ? 'is-cancelled' : ''}" data-sid="${h.sessionId}">
       <span class="hrow-att ${h.attended === true ? 'y' : h.attended === false ? 'n' : ''}">${h.attended === true ? I.check : h.attended === false ? I.x : '·'}</span>
       <span class="hrow-main"><b>${esc(fmtShort(h.sessionDate))} · ${fmtTime(h.startTime)}</b>
-        <small>${esc(h.groupName || '')}${h.groupName ? ' · ' : ''}${esc(h.coachName)}${h.mood ? ' · ' + (MOOD_EMOJI[h.mood] || '') : ''}</small>
+        <small>${esc(h.groupName || '')}${h.groupName ? ' · ' : ''}${esc(h.coachName)}${h.mood ? ' · ' + (MOOD_EMOJI[h.mood] || '') : ''}${h.meters ? ` · 🏊 ${S.fmtM(h.meters)}` : ''}</small>
         ${h.swamWhat ? `<span class="hrow-t"><b>Плува:</b> ${esc(h.swamWhat)}</span>` : ''}
         ${h.dailyProgress ? `<span class="hrow-t"><b>Постигна:</b> ${esc(h.dailyProgress)}</span>` : ''}
         ${h.parentNote ? `<span class="hrow-t hrow-p">✉️ ${esc(h.parentNote)}</span>` : ''}</span>

@@ -921,3 +921,12 @@ body.menu-open .menu-sheet nav button { translate: none; opacity: 1; }
 /* иконки в малки бутони — никога да не се разливат */
 .x-btn svg { width: 18px; height: 18px; }
 @media (max-width: 480px) { .brand-team { display: none; } }
+
+/* Безплатно (вместо ценоразпис) */
+.free-card { display: grid; grid-template-columns: 1.2fr 1fr; gap: clamp(24px, 4vw, 56px); align-items: center; margin-top: clamp(28px, 4vw, 48px);
+  padding: clamp(26px, 4vw, 48px); border-radius: var(--r-xl); background: linear-gradient(135deg, #fff, #EEF6FF); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.free-main .sec-lead { margin: 14px 0 22px; }
+.free-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.free-list li { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--navy); }
+.free-list svg { width: 20px; height: 20px; color: var(--green); flex-shrink: 0; }
+@media (max-width: 860px) { .free-card { grid-template-columns: 1fr; } }

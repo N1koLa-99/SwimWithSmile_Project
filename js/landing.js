@@ -16,19 +16,7 @@
   const FINE_POINTER = matchMedia('(hover: hover) and (pointer: fine)').matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-  // Цени (в евро). Годишно = 20% отстъпка. Плащанията още не са свързани.
-  const PLANS = [
-    { key: 'solo', name: 'Соло', month: 0, year: 0, seats: 1, kids: 15,
-      tag: 'За треньор, който тепърва започва',
-      feats: ['1 треньор', 'До 15 плувци', 'График, картони и дневник', 'Карти за напредък и награди', 'Родителски достъп с код'] },
-    { key: 'team', name: 'Отбор', month: 9, year: 7, seats: 3, kids: 60, featured: true,
-      tag: 'За двама-трима треньори с общи деца',
-      feats: ['До 3 треньори', 'До 60 плувци', 'Покана за колега с линк', 'Цвят за всеки треньор в графика', 'Всичко от „Соло"'] },
-    { key: 'club', name: 'Клуб', month: 19, year: 15, seats: 10, kids: 300,
-      tag: 'За плувен клуб с няколко групи',
-      feats: ['До 10 треньори', 'До 300 плувци', 'Приоритетна поддръжка', 'Помощ при прехвърляне на данни', 'Всичко от „Отбор"'] },
-  ];
-  const planByKey = (k) => PLANS.find(p => p.key === k) || PLANS[0];
+
 
   /* ============================================================
      Типография: разделяне на заглавие на думи за поетапна поява.
@@ -266,7 +254,7 @@
   /* ============================================================
      Навигация на сайта
      ============================================================ */
-  const NAV = [['how', 'Как работи'], ['features', 'Функции'], ['parents', 'Родители'], ['pricing', 'Цени'], ['faq', 'Въпроси']];
+  const NAV = [['how', 'Как работи'], ['features', 'Функции'], ['parents', 'Родители'], ['pricing', 'Безплатно'], ['faq', 'Въпроси']];
 
   function siteNav() {
     const authed = API.isAuthed();
@@ -522,31 +510,20 @@
           </div>
         </section>
 
-        <!-- ===================== ЦЕНИ ===================== -->
+        <!-- ===================== БЕЗПЛАТНО ===================== -->
         <section class="sec" id="sec-pricing">
           <div class="container">
-            ${eyebrow('05', 'Цени')}
-            <div class="sec-head-row">
-              <h2 class="sec-h" data-reveal="words">${split('Започни *безплатно.*\nРасти с отбора.')}</h2>
-              <div class="bill-toggle" data-reveal="up" role="group" aria-label="Период на плащане">
-                <button type="button" class="on" data-bill="month">Месечно</button>
-                <button type="button" data-bill="year">Годишно <em>−20%</em></button>
-                <i class="bill-thumb"></i>
+            ${eyebrow('05', 'Безплатно')}
+            <div class="free-card" data-reveal="up">
+              <div class="free-main">
+                <h2 class="sec-h" data-reveal="words">${split('Напълно *безплатно.*\nБез карта, без лимити.')}</h2>
+                <p class="sec-lead">Направено от треньори за треньори. Създай отбор, покани колегите си и работете заедно — колкото треньори и плувци имате.</p>
+                <a class="btn btn-sun btn-xl" href="#/register">Създай отбор ${I.arrowR}</a>
               </div>
+              <ul class="free-list">
+                ${['Неограничен брой треньори и плувци', 'Треньорът може да е в няколко отбора', 'Общ график и Google Calendar', 'Картони, умения, нива и награди', 'Метри на тренировка и напредък', 'Родителски достъп с код'].map(f => `<li>${I.check}${f}</li>`).join('')}
+              </ul>
             </div>
-            <div class="plans">
-              ${PLANS.map((p, i) => `
-                <article class="plan ${p.featured ? 'plan-featured' : ''}" data-reveal="up" style="--d:${i * .1}s" data-tilt="4">
-                  ${p.featured ? '<div class="plan-flag">Препоръчан за двама</div>' : ''}
-                  <h3>${p.name}</h3>
-                  <p class="plan-tag">${p.tag}</p>
-                  <div class="plan-price"><span class="amt" data-m="${p.month}" data-y="${p.year}">${p.month}</span><span class="cur">€</span><span class="per">${p.month ? '/ месец' : 'завинаги'}</span></div>
-                  <p class="plan-bill" data-mt="${p.month ? 'плащане всеки месец' : 'без карта, без срок'}" data-yt="${p.year ? `${p.year * 12} € веднъж годишно` : 'без карта, без срок'}">${p.month ? 'плащане всеки месец' : 'без карта, без срок'}</p>
-                  <a class="btn ${p.featured ? 'btn-sun' : 'btn-ink'} btn-lg btn-block" href="#/register?plan=${p.key}">${p.month ? 'Избери ' + p.name : 'Започни безплатно'}</a>
-                  <ul>${p.feats.map(f => `<li>${I.check}${f}</li>`).join('')}</ul>
-                </article>`).join('')}
-            </div>
-            <p class="plans-note" data-reveal="up">Цените са в евро. Можеш да смениш плана по всяко време от страница „Отбор“.</p>
           </div>
         </section>
 
@@ -561,12 +538,12 @@
             <div class="faq" data-reveal="up">
               ${[
                 ['Трябва ли родителите да си правят профил?', 'Не. Всяко дете има 8-цифрен код. Родителят въвежда кода и датата на раждане на детето и вижда неговата страница. Ако кодът изтече някъде, генерираш нов с един бутон.'],
-                ['Как вторият треньор влиза в отбора?', 'От страница „Отбор“ копираш линка за покана и го пращаш. Колегата го отваря, въвежда име, имейл и парола и вече е вътре. Нужен е план „Отбор“ или „Клуб“.'],
+                ['Как вторият треньор влиза в отбора?', 'От страница „Отбор“ копираш линка за покана и го пращаш. Колегата го отваря, въвежда име, имейл и парола и вече е вътре. Ако вече има профил — влиза със същата парола и отборът се добавя към профила му.'],
                 ['Кой вижда данните на децата?', 'Само треньорите от твоя отбор. Всеки отбор е напълно отделен, паролите се пазят хеширани, а родителите виждат само своето дете и без здравна информация.'],
                 ['Работи ли на телефон?', 'Да. Сайтът е направен първо за телефон: таб лента долу, големи бутони и формуляри, които се отварят отдолу като в приложение. Можеш да го добавиш на началния екран.'],
-                ['Мога ли да сменя или откажа плана?', 'По всяко време от страница „Отбор“. Ако треньорите в отбора станат повече, отколкото позволява по-малкият план, първо премахваш някого.'],
+                ['Наистина ли е безплатно?', 'Да. Няма планове, няма карта, няма лимит на треньори и плувци. Можеш да си в колкото отбора искаш и да сменяш между тях с едно докосване.'],
                 ['Какво става, ако пропусна да попълня тренировка?', 'Нищо страшно. Можеш да попълниш по-късно, дори за минали дни. Всяко дете пази цялата си история.'],
-                ['Как се свързва с Google Calendar?', 'От „График → Google Calendar“ натискаш „Добави“. Всички тренировки (или само твоите) се появяват в календара ти и се обновяват сами.'],
+                ['Как се свързва с Google Calendar?', 'В двете посоки. Тренировките от сайта влизат в календара ти с един бутон. А от твоя Google Calendar в сайта излизат само тренировките с имена на плувци и почивките — личните неща (обяд, кафе, твоят басейн) остават скрити.'],
                 ['Подходящо ли е за деца със СОП?', 'Да — направено е от треньори, които работят с такива деца. Има отделно поле за специални потребности, червено предупреждение, което се вижда на всяка тренировка, и сигнал при пропуснати тренировки.'],
                 ['А личните данни (GDPR)?', 'Данните са само в твоя отбор. Родителите не виждат здравна информация. В картона отбелязваш датата, на която родителят е дал съгласие.'],
               ].map(([q, a], i) => `
@@ -621,21 +598,6 @@
       const mv = (e) => { const r = hero.getBoundingClientRect(); hero.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%'); hero.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%'); };
       hero.addEventListener('pointermove', mv, { passive: true });
     }
-
-    // Месечно / годишно
-    $$('[data-bill]').forEach(b => b.onclick = () => {
-      const y = b.dataset.bill === 'year';
-      $$('[data-bill]').forEach(x => x.classList.toggle('on', x === b));
-      $('.bill-toggle').classList.toggle('is-year', y);
-      $$('.plan').forEach(pl => {
-        const amt = $('.amt', pl), bill = $('.plan-bill', pl);
-        const v = y ? amt.dataset.y : amt.dataset.m;
-        if (amt.textContent === v) return;
-        amt.classList.remove('flip'); void amt.offsetWidth; amt.classList.add('flip');
-        setTimeout(() => { amt.textContent = v; }, 140);
-        bill.textContent = y ? bill.dataset.yt : bill.dataset.mt;
-      });
-    });
 
     // Въпроси (акордеон с плавна височина)
     $$('.qa-q').forEach(q => q.onclick = () => {
@@ -767,25 +729,25 @@
   });
 
   /* ============================================================
-     РЕГИСТРАЦИЯ — 3 стъпки: ти → отбор → план
+     РЕГИСТРАЦИЯ — 2 стъпки: ти → отбор
      ============================================================ */
   route(/^\/register(?:\?.*)?$/, () => {
     if (API.isAuthed()) return navigate('/app/team');
-    const st = { step: 0, plan: planByKey(query().get('plan') || 'solo').key, data: {} };
+    const st = { step: 0, data: {} };
 
     authShell({
       wide: true,
       side: `
         <h1 class="auth2-h" data-reveal="words">${split('Твоят отбор.\nТвоят *басейн.*')}</h1>
-        <p class="auth2-sub" data-reveal="up" style="--d:.3s">Три кратки стъпки и си готов за първата тренировка.</p>
+        <p class="auth2-sub" data-reveal="up" style="--d:.3s">Две кратки стъпки и си готов за първата тренировка. Безплатно.</p>
         <ol class="side-steps" data-reveal="up" style="--d:.45s">
-          <li data-s="0"><span>1</span>Ти</li><li data-s="1"><span>2</span>Отборът</li><li data-s="2"><span>3</span>План</li>
+          <li data-s="0"><span>1</span>Ти</li><li data-s="1"><span>2</span>Отборът</li>
         </ol>`,
       body: `<div class="stepper" id="stepper"></div><div id="regBody"></div>`
     });
 
     const paint = () => {
-      $('#stepper').innerHTML = ['Ти', 'Отбор', 'План'].map((l, i) => `<div class="stp ${i < st.step ? 'done' : ''} ${i === st.step ? 'cur' : ''}"><span>${i < st.step ? I.check : i + 1}</span><b>${l}</b></div>`).join('<i class="stp-line"></i>');
+      $('#stepper').innerHTML = ['Ти', 'Отбор'].map((l, i) => `<div class="stp ${i < st.step ? 'done' : ''} ${i === st.step ? 'cur' : ''}"><span>${i < st.step ? I.check : i + 1}</span><b>${l}</b></div>`).join('<i class="stp-line"></i>');
       $$('.side-steps li').forEach(li => { li.classList.toggle('cur', +li.dataset.s === st.step); li.classList.toggle('done', +li.dataset.s < st.step); });
       const body = $('#regBody');
       const d = st.data;
@@ -798,29 +760,14 @@
           ${inField('Парола', 'password', { type: 'password', ph: 'поне 8 символа', icon: I.lock, auto: 'new-password', value: d.password || '' })}
           <div class="pw-meter" id="pwMeter"><i></i><i></i><i></i><i></i><span></span></div>
           <button class="btn btn-primary btn-block btn-lg" type="submit">Напред ${I.arrowR}</button>
-          <p class="auth-alt">Вече имаш профил? <a href="#/login">Вход</a></p>
+          <p class="auth-alt">Вече имаш профил? <a href="#/login">Вход</a> · или въведи същия имейл и парола — ще ти добавим още един отбор.</p>
         </form>`;
-      else if (st.step === 1) body.innerHTML = `
+      else body.innerHTML = `
         <form id="regForm" class="auth-form step-anim" novalidate>
           <h2>Кръсти отбора</h2>
           <p class="auth-lead">Така ще го виждат колегите, които поканиш.</p>
           ${inField('Име на отбора', 'teamName', { ph: 'напр. Делфините на Никола', icon: I.team, value: d.teamName || '', hint: 'Може да го смениш по-късно.' })}
           <div class="team-preview"><span class="tp-av">${esc(initials(...(d.teamName || 'Отбор').split(' ')))}</span><div><b id="tpName">${esc(d.teamName || 'Твоят отбор')}</b><small>${esc(d.fullName || '')} · собственик</small></div></div>
-          <div class="form-row"><button class="btn btn-ghost btn-lg" type="button" data-back>${I.chevL} Назад</button><button class="btn btn-primary btn-lg" type="submit">Напред ${I.arrowR}</button></div>
-        </form>`;
-      else body.innerHTML = `
-        <form id="regForm" class="auth-form step-anim" novalidate>
-          <h2>Избери план</h2>
-          <p class="auth-lead">Започни с „Соло“ и надгради, когато поканиш колега.</p>
-          <div class="plan-pick" role="radiogroup">
-            ${PLANS.map(p => `
-              <label class="pp ${st.plan === p.key ? 'on' : ''}">
-                <input type="radio" name="plan" value="${p.key}" ${st.plan === p.key ? 'checked' : ''}>
-                <span class="pp-radio"></span>
-                <span class="pp-main"><b>${p.name}${p.featured ? ' <em>за двама</em>' : ''}</b><small>${p.seats === 1 ? '1 треньор' : 'до ' + p.seats + ' треньори'} · до ${p.kids} деца</small></span>
-                <span class="pp-price">${p.month ? `${p.month} €<small>/мес</small>` : 'Безплатно'}</span>
-              </label>`).join('')}
-          </div>
           <label class="agree"><input type="checkbox" id="agree"><span></span>Съгласен съм данните на децата да се пазят в този отбор и да ги виждат само треньорите от него.</label>
           <div class="form-row"><button class="btn btn-ghost btn-lg" type="button" data-back>${I.chevL} Назад</button><button class="btn btn-sun btn-lg" type="submit">Създай отбора ${I.arrowR}</button></div>
         </form>`;
@@ -841,7 +788,6 @@
         pw.oninput = rate; rate();
       }
       if (st.step === 1) $('#f_teamName').oninput = (e) => { $('#tpName').textContent = e.target.value || 'Твоят отбор'; $('.tp-av').textContent = initials(...(e.target.value || 'Отбор').split(' ')) || 'О'; };
-      if (st.step === 2) $$('.pp input', form).forEach(r => r.onchange = () => { st.plan = r.value; $$('.pp', form).forEach(l => l.classList.toggle('on', l.contains(r))); });
 
       form.onsubmit = async (e) => {
         e.preventDefault(); collect();
@@ -851,14 +797,11 @@
           if ((d.password || '').length < 8) return fieldErr('password', 'Поне 8 символа');
           st.step = 1; return paint();
         }
-        if (st.step === 1) {
-          if ((d.teamName || '').length < 2) return fieldErr('teamName', 'Въведи име на отбора');
-          st.step = 2; return paint();
-        }
+        if ((d.teamName || '').length < 2) return fieldErr('teamName', 'Въведи име на отбора');
         if (!$('#agree').checked) { $('.agree').classList.remove('shake'); void $('.agree').offsetWidth; $('.agree').classList.add('shake'); return toast('Потвърди съгласието', 'err'); }
         const btn = $('[type=submit]', form); busy(btn, true, 'Създаване…');
         try {
-          const r = await API.register({ ...d, plan: st.plan });
+          const r = await API.register({ ...d });
           welcome(r);
         } catch (ex) {
           busy(btn, false); err(ex);
@@ -888,7 +831,6 @@
         <div class="welcome-ico">${logoMark(64)}</div>
         <h2>Отборът „${esc(r.teamName)}“ е готов!</h2>
         <p class="auth-lead">Покани колегата си с този линк. Може и по-късно от страница „Отбор“.</p>
-        ${r.plan === 'solo' ? `<p class="note">${I.lock} В план „Соло“ има място за 1 треньор. За колега избери „Отбор“ от страница „Отбор“.</p>` : ''}
         <div class="invite-box"><input class="input" readonly value="${esc(link)}" id="invLink"><button class="btn btn-soft" id="copyInv" type="button">${I.copy} Копирай</button></div>
         <a class="btn btn-primary btn-lg btn-block" href="#/app/today">Към графика ${I.arrowR}</a>
       </div>`;
@@ -918,19 +860,18 @@
       $('#joinBody').innerHTML = `<div class="empty"><div class="ico">${I.x}</div><h3>Поканата не е валидна</h3><p class="subtle">Може да е сменена. Поискай нов линк от собственика на отбора.</p><a class="btn btn-primary" href="#/" style="margin-top:18px">Към началото</a></div>`;
       return;
     }
-    const full = info.seatsLeft <= 0;
+    const full = false; // без лимити
     $('#joinBody').innerHTML = `
       <div class="invite-head step-anim">
         <span class="tp-av lg">${esc(initials(...info.teamName.split(' ')))}</span>
         <div><small>${esc(info.ownerName || 'Треньор')} те кани в</small><h2>${esc(info.teamName)}</h2></div>
       </div>
-      ${full ? `<p class="note warn">${I.lock} Отборът е пълен за текущия план. Помоли ${esc(info.ownerName || 'собственика')} да го надгради и опитай пак.</p>` : ''}
+      <p class="note">Вече имаш профил в SwimWithSmile? Въведи <b>същия имейл и парола</b> — отборът ще се добави към профила ти и ще сменяш между отборите с едно докосване.</p>
       <form id="joinForm" class="auth-form step-anim" novalidate ${full ? 'inert' : ''}>
         ${inField('Име и фамилия', 'fullName', { ph: 'напр. Доника Иванова', icon: I.user, auto: 'name' })}
         ${inField('Имейл', 'email', { type: 'email', ph: 'ime@example.com', icon: I.mail, auto: 'email' })}
         ${inField('Парола', 'password', { type: 'password', ph: 'поне 8 символа', icon: I.lock, auto: 'new-password' })}
         <button class="btn btn-sun btn-block btn-lg" type="submit" ${full ? 'disabled' : ''}>Влез в отбора ${I.arrowR}</button>
-        <p class="auth-alt">Вече имаш профил? <a href="#/login">Вход</a></p>
       </form>`;
     bindEyes();
     $('#joinForm').onsubmit = async (e) => {
@@ -963,10 +904,9 @@
     let t;
     try { t = await API.team(); } catch (e) { return err(e); }
     const host = $('#teamView'); if (!host) return;
-    API.patchUser({ teamName: t.name, plan: t.plan, role: t.isOwner ? 'owner' : 'coach' });
+    API.patchUser({ teamName: t.name, role: t.isOwner ? 'owner' : 'coach' });
     const me = (API.getUser() || {}).id;
-    const pct = (a, b) => Math.min(100, Math.round(a / b * 100));
-    const cur = planByKey(t.plan);
+    const teams = (API.getUser() || {}).teams || [];
     const COLORS = ['#1F73E0', '#12805a', '#F5883C', '#8B5CF6', '#EF5F6B', '#14B8A6', '#EAB308', '#EC4899'];
 
     host.innerHTML = `
@@ -975,11 +915,12 @@
         <span class="tp-av xl">${esc(initials(...t.name.split(' ')))}</span>
         <div class="team-hero-main">
           <div class="team-name-row"><h2 id="tName">${esc(t.name)}</h2>${t.isOwner ? `<button class="btn-icon btn-glass" id="renameBtn" aria-label="Преименувай">${I.edit}</button>` : ''}</div>
-          <div class="team-badges"><span class="badge badge-plan">План „${esc(t.planName)}“</span><span class="badge badge-glass">${t.isOwner ? 'Ти си собственик' : 'Треньор'}</span></div>
+          <div class="team-badges"><span class="badge badge-plan">Безплатно</span><span class="badge badge-glass">${t.isOwner ? 'Ти си собственик' : 'Треньор'}</span></div>
         </div>
-        <div class="meters">
-          <div class="meter"><div class="meter-top"><span>Треньори</span><b>${t.members.length} / ${t.seats}</b></div><div class="meter-track"><i style="--w:${pct(t.members.length, t.seats)}%"></i></div></div>
-          <div class="meter"><div class="meter-top"><span>Деца</span><b>${t.kids} / ${t.kidsLimit}</b></div><div class="meter-track"><i style="--w:${pct(t.kids, t.kidsLimit)}%"></i></div></div>
+        <div class="team-nums">
+          <div><b>${t.members.length}</b><small>${t.members.length === 1 ? 'треньор' : 'треньори'}</small></div>
+          <div><b>${t.kids}</b><small>плувци</small></div>
+          <div><b>${t.poolLength || 25} м</b><small>басейн</small></div>
         </div>
       </section>
 
@@ -1006,25 +947,29 @@
               ${navigator.share ? `<button class="btn btn-sky btn-sm" id="shareInv">${I.share} Сподели</button>` : ''}
               <button class="btn btn-ghost btn-sm" id="regenInv">${I.refresh} Нов линк</button>
             </div>
-            ${t.members.length >= t.seats ? `<p class="note warn">${I.lock} Всички места в „${esc(t.planName)}“ са заети. Надгради плана, за да поканиш още някого.</p>` : `<p class="note">Свободни места: <b>${t.seats - t.members.length}</b></p>`}`
+            <p class="note">Без лимит — покани колкото колеги искаш. Ако колегата вече има профил, влиза със същата парола.</p>`
           : `<p class="subtle">Само собственикът на отбора може да кани нови треньори.</p>`}
         </section>
       </div>
 
-      <section class="rise" style="animation-delay:.15s">
-        <div class="section-h"><h2>План</h2>${t.isOwner ? '' : '<span class="subtle">Само собственикът може да го смени.</span>'}</div>
-        <div class="plan-cards">
-          ${PLANS.map(p => `
-            <article class="pc ${p.key === t.plan ? 'cur' : ''}">
-              ${p.key === t.plan ? '<span class="pc-flag">Текущ</span>' : ''}
-              <h3>${p.name}</h3>
-              <div class="pc-price">${p.month ? `<b>${p.month} €</b><small>/ месец</small>` : '<b>0 €</b><small>завинаги</small>'}</div>
-              <ul>${p.feats.slice(0, 3).map(f => `<li>${I.check}${f}</li>`).join('')}</ul>
-              ${t.isOwner && p.key !== t.plan ? `<button class="btn ${p.month > cur.month ? 'btn-primary' : 'btn-ghost'} btn-block" data-plan="${p.key}">${p.month > cur.month ? 'Надгради' : 'Премини'}</button>` : ''}
-            </article>`).join('')}
-        </div>
-        <p class="plans-note">Плащанията още не са включени. Смяната на плана е моментална.</p>
-      </section>`;
+      <div class="team-grid">
+        <section class="card card-pad rise" style="animation-delay:.15s">
+          <div class="card-section-title"><span class="ico">🏊</span>Басейн</div>
+          <p class="subtle" style="margin-bottom:12px">Дължината на басейна, в който тренирате — по нея се смятат метрите („4x6" = 4 пъти по 6 дължини). За отделна тренировка може да се смени.</p>
+          <div class="pool-row">
+            <input class="input" id="poolLen" type="number" min="5" max="100" step="0.5" inputmode="decimal" value="${t.poolLength || 25}" ${t.isOwner ? '' : 'disabled'} aria-label="Дължина на басейна в метри"><span>метра</span>
+            ${t.isOwner ? `<button class="btn btn-primary btn-sm" id="poolSave">${I.check} Запази</button>` : ''}
+          </div>
+          <div class="qchips">${[12.5, 16.7, 17, 20, 25, 33.3, 50].map(v => `<button type="button" data-pool="${v}" ${t.isOwner ? '' : 'disabled'}>${String(v).replace('.', ',')} м</button>`).join('')}</div>
+        </section>
+        <section class="card card-pad rise" style="animation-delay:.2s">
+          <div class="card-section-title"><span class="ico">${I.layers}</span>Моите отбори</div>
+          <div class="menu-list">${(teams.length ? teams : [{ teamId: t.id, teamName: t.name, role: t.isOwner ? 'owner' : 'coach' }]).map(x => `
+            <button class="menu-row team-row ${x.teamId === t.id ? 'cur' : ''}" data-switch="${esc(x.teamId)}">${I.team}<span><b>${esc(x.teamName)}</b><small>${x.role === 'owner' ? 'собственик' : 'треньор'}</small></span>${x.teamId === t.id ? '<span class="tag">тук си</span>' : I.chevR}</button>`).join('')}
+            <button class="menu-row" id="teamNew">${I.plus}<span>Нов отбор</span>${I.chevR}</button>
+          </div>
+        </section>
+      </div>`;
 
     const rn = $('#renameBtn');
     if (rn) rn.onclick = () => {
@@ -1048,10 +993,19 @@
         footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-danger" id="rmOk">${I.trash} Премахни</button>` });
       $('#rmOk').onclick = async () => { try { await API.removeCoach(b.dataset.rm); closeModal(); toast('Премахнат', 'ok'); drawTeam(); } catch (e) { err(e); } };
     });
-    $$('[data-plan]').forEach(b => b.onclick = async () => {
-      const p = planByKey(b.dataset.plan);
-      busy(b, true, '');
-      try { await API.setPlan(p.key); toast(`Планът е „${p.name}“`, 'ok'); drawTeam(); } catch (e) { busy(b, false); err(e); }
+    $$('[data-pool]').forEach(b => b.onclick = () => { $('#poolLen').value = b.dataset.pool; });
+    const ps = $('#poolSave'); if (ps) ps.onclick = async () => {
+      const v = +String($('#poolLen').value).replace(',', '.');
+      if (!(v >= 5 && v <= 100)) return toast('Между 5 и 100 метра', 'err');
+      busy(ps, true, '');
+      try { await API.updateTeam({ poolLength: v }); API.refreshBoot().catch(() => {}); toast(`Басейн ${v} м`, 'ok'); drawTeam(); } catch (e) { busy(ps, false); err(e); }
+    };
+    $$('[data-switch]').forEach(b => b.onclick = async () => {
+      if (b.dataset.switch === t.id) return;
+      busy(b, true);
+      try { const r = await API.switchTeam(b.dataset.switch); toast(`Ти си в „${r.teamName}"`, 'ok'); S.render(); } catch (e) { busy(b, false); err(e); }
     });
+    const tn = $('#teamNew'); if (tn) tn.onclick = () => S.newTeamForm();
+    API.myTeams().then(list => { if (list.length !== teams.length && $('#teamView')) drawTeam(); }).catch(() => {});
   }
 })();

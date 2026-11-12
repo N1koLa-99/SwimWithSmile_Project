@@ -17,15 +17,18 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Шрифтовете не блокират първото рисуване -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" /></noscript>
 
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
   <link rel="preconnect" href="https://script.google.com" crossorigin />
-  <link rel="stylesheet" href="css/styles.css?v=37" />
-  <link rel="stylesheet" href="css/landing.css?v=37" />
-  <link rel="stylesheet" href="css/app.css?v=37" />
-  <link rel="stylesheet" href="css/mobile.css?v=37" />
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin />
+  <link rel="stylesheet" href="css/styles.css?v=40" />
+  <link rel="stylesheet" href="css/landing.css?v=40" />
+  <link rel="stylesheet" href="css/app.css?v=40" />
+  <link rel="stylesheet" href="css/mobile.css?v=40" />
 </head>
 <body>
   <div id="app" class="app-root">
@@ -36,11 +39,11 @@
   <div id="toast-host" class="toast-host" aria-live="polite"></div>
   <div id="modal-host" class="modal-host" hidden></div>
 
-  <script src="js/api.js?v=37" defer></script>
-  <script src="js/app.js?v=37" defer></script>
-  <script src="js/coach.js?v=37" defer></script>
-  <script src="js/parent.js?v=37" defer></script>
-  <script src="js/landing.js?v=37" defer></script>
+  <script src="js/api.js?v=40" defer></script>
+  <script src="js/app.js?v=40" defer></script>
+  <script src="js/coach.js?v=40" defer></script>
+  <script src="js/parent.js?v=40" defer></script>
+  <script src="js/landing.js?v=40" defer></script>
   <script>
     // Офлайн кеш на файловете на сайта → моментално зареждане при второ отваряне
     if ('serviceWorker' in navigator && location.protocol === 'https:') {

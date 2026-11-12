@@ -71,6 +71,7 @@
         <div class="p-stats rise">
           <div><b>${st.present || 0}</b><small>тренировки</small></div>
           <div><b>${st.pct30 != null ? st.pct30 + '%' : st.pct != null ? st.pct + '%' : '—'}</b><small>посещаемост</small></div>
+          ${st.meters ? `<div><b>${S.fmtM(st.meters)}</b><small>изплувани</small></div>` : ''}
           <div><b>${st.streak || 0}🔥</b><small>поредни идвания</small></div>
           <div><b>${doneSkills.length}</b><small>умения</small></div>
         </div>
@@ -112,7 +113,7 @@
         <h2 class="p-h">Посещения</h2>
         <div class="card card-pad rise">
           ${(d.history || []).length ? `<div class="att-strip">${d.history.filter(h => h.attended !== null && h.status !== 'cancelled').slice(0, 30).reverse().map(h => `<i class="${h.attended ? 'y' : 'n'}" title="${fmtShort(h.sessionDate)}"></i>`).join('')}</div>
-            <div class="p-hist">${d.history.slice(0, 12).map(h => `<div><span>${esc(fmtShort(h.sessionDate))}</span><span class="subtle">${esc(String(h.coachName).split(' ')[0])}</span><b class="${h.status === 'cancelled' ? '' : h.attended === true ? 'y' : h.attended === false ? 'n' : ''}">${h.status === 'cancelled' ? 'отменена' : h.attended === true ? 'беше там' : h.attended === false ? 'отсъства' : '—'}</b></div>`).join('')}</div>`
+            <div class="p-hist">${d.history.slice(0, 12).map(h => `<div><span>${esc(fmtShort(h.sessionDate))}</span><span class="subtle">${esc(String(h.coachName).split(' ')[0])}${h.meters ? ` · 🏊 ${S.fmtM(h.meters)}` : ''}</span><b class="${h.status === 'cancelled' ? '' : h.attended === true ? 'y' : h.attended === false ? 'n' : ''}">${h.status === 'cancelled' ? 'отменена' : h.attended === true ? 'беше там' : h.attended === false ? 'отсъства' : '—'}</b></div>`).join('')}</div>`
           : `<p class="subtle">Още няма тренировки.</p>`}
         </div>
         <p class="subtle small" style="text-align:center;margin-top:26px">Здравните данни и вътрешните бележки на треньорите не се показват тук.</p>

@@ -1,10 +1,10 @@
 /* SwimWithSmile — service worker
    Файловете на сайта (CSS/JS/иконки/шрифтове) се пазят локално → второто
    отваряне е моментално. Страницата (index.html) винаги се взима свежа,
-   ако има интернет. Заявките към Google Apps Script НЕ се кешират. */
-const CACHE = 'sws-v37';
-const CORE = ['./', 'index.html', 'css/styles.css?v=37', 'css/landing.css?v=37', 'css/app.css?v=37', 'css/mobile.css?v=37',
-  'js/api.js?v=37', 'js/app.js?v=37', 'js/coach.js?v=37', 'js/parent.js?v=37', 'js/landing.js?v=37', 'manifest.json'];
+   ако има интернет. Заявките към API (/exec) НЕ се кешират. */
+const CACHE = 'sws-v40';
+const CORE = ['./', 'index.html', 'css/styles.css?v=40', 'css/landing.css?v=40', 'css/app.css?v=40', 'css/mobile.css?v=40',
+  'js/api.js?v=40', 'js/app.js?v=40', 'js/coach.js?v=40', 'js/parent.js?v=40', 'js/landing.js?v=40', 'manifest.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));
@@ -19,7 +19,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   const sameOrigin = url.origin === location.origin;
   const isFont = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
-  if (!sameOrigin && !isFont) return;                 // напр. script.google.com — без кеш
+  if (!sameOrigin && !isFont) return;                 // чужди адреси — без кеш
+  if (sameOrigin && url.pathname.startsWith('/exec')) return; // API — никога от кеша
 
   // Страницата: първо мрежата, после кеша (за офлайн)
   if (req.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname === '/') {

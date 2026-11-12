@@ -181,12 +181,12 @@
   function openConfig() {
     modal({
       title: 'Връзка към API',
-      body: `<div class="field"><label>Адрес на сървъра (Google Apps Script)</label>
-        <input class="input" id="apiBaseIn" value="${esc(API.getBase())}" placeholder="https://script.google.com/macros/s/.../exec">
-        <span class="hint">Адресът на твоето Apps Script Web App — завършва на <b>/exec</b>.</span></div>`,
+      body: `<div class="field"><label>Адрес на сървъра</label>
+        <input class="input" id="apiBaseIn" value="${esc(API.getBase())}" placeholder="https://swimwithsmile.pages.dev/exec">
+        <span class="hint">Обикновено не се пипа. Завършва на <b>/exec</b>. Празно = по подразбиране.</span></div>`,
       footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="saveCfg">Запази</button>`
     });
-    $('#saveCfg').onclick = () => { API.setBase($('#apiBaseIn').value.trim()); toast('Запазено', 'ok'); closeModal(); };
+    $('#saveCfg').onclick = () => { const v = $('#apiBaseIn').value.trim(); if (v) API.setBase(v); else { try { localStorage.removeItem('sws.apiBase'); } catch {} } toast('Запазено', 'ok'); closeModal(); };
   }
 
   /* ============================================================
@@ -210,9 +210,9 @@
           ${logoMark()}
           <div class="brand-txt">
             <div class="brand-name">Swim<span>With</span>Smile</div>
-            ${u.teamName ? `<div class="brand-team">${esc(u.teamName)}</div>` : ''}
           </div>
         </a>
+        ${u.teamName ? `<button class="team-pill" id="teamPill" aria-label="Смени отбора">${I.team}<span>${esc(u.teamName)}</span>${(u.teams || []).length > 1 ? I.chevD : ''}</button>` : ''}
         <nav class="nav" aria-label="Основна навигация">${NAV.map(navLink).join('')}</nav>
         <div class="topbar-right">
           <button class="usr" id="meBtn" aria-label="Профил и изход"><span class="nm">${esc(u.name || u.email || 'Треньор')}</span><span class="avatar">${ini}</span></button>
@@ -226,6 +226,52 @@
       </nav>`;
     $('#meBtn').onclick = () => accountSheet();
     $('#fabBtn').onclick = () => quickSheet();
+    const tp = $('#teamPill'); if (tp) tp.onclick = () => teamSheet();
+    API.prefetch();
+  }
+
+  // Избор на отбор — треньорът може да е в колкото иска отбори
+  async function teamSheet() {
+    const u = API.getUser() || {};
+    const paint = (teams) => {
+      const body = $('#modal-host .modal-body'); if (!body) return;
+      body.innerHTML = `
+        <p class="subtle" style="margin-bottom:12px">Избери в кой отбор да влезеш. Всеки отбор има свои плувци, график и треньори.</p>
+        <div class="menu-list">${teams.map(t => `
+          <button class="menu-row team-row ${t.teamId === u.teamId ? 'cur' : ''}" data-tid="${esc(t.teamId)}">${I.team}
+            <span><b>${esc(t.teamName)}</b><small>${t.role === 'owner' ? 'собственик' : 'треньор'}</small></span>
+            ${t.teamId === u.teamId ? `<span class="tag">тук си</span>` : I.chevR}</button>`).join('')}
+        </div>
+        <div class="menu-list" style="margin-top:12px">
+          <button class="menu-row" id="tNew">${I.plus}<span>Нов отбор</span>${I.chevR}</button>
+          <a class="menu-row" href="#/app/team">${I.link}<span>Покани колега в „${esc(u.teamName || '')}"</span>${I.chevR}</a>
+        </div>`;
+      $$('#modal-host [data-tid]').forEach(b => b.onclick = async () => {
+        if (b.dataset.tid === u.teamId) return closeModal();
+        busy(b, true);
+        try { const r = await API.switchTeam(b.dataset.tid); closeModal(); toast(`Ти си в „${r.teamName}"`, 'ok'); navigate('/app/today'); render(); }
+        catch (e) { busy(b, false); err(e); }
+      });
+      $('#tNew').onclick = () => newTeamForm();
+      $$('#modal-host a.menu-row').forEach(a => a.addEventListener('click', closeModal));
+    };
+    modal({ title: 'Отбори', body: '' });
+    paint(u.teams && u.teams.length ? u.teams : [{ teamId: u.teamId, teamName: u.teamName, role: u.role }]);
+    try { const list = await API.myTeams(); if ($('#modal-host .modal-body')) paint(list); } catch {}
+  }
+  function newTeamForm() {
+    modal({ title: 'Нов отбор', body: `
+      <div class="field"><label for="ntName">Име на отбора</label><input class="input" id="ntName" placeholder="напр. Делфините — Велико Търново" maxlength="60"></div>
+      <p class="hint">Ставаш собственик. Влизаш със същия имейл и парола — после сменяш отбора от бутона горе.</p>`,
+      footer: `<button class="btn btn-ghost" data-close>Отказ</button><button class="btn btn-primary" id="ntOk">${I.check} Създай</button>` });
+    $('#ntName').focus();
+    $('#ntOk').onclick = async (ev) => {
+      const name = $('#ntName').value.trim();
+      if (name.length < 2) return toast('Въведи име на отбора', 'err');
+      busy(ev.currentTarget, true, 'Създаване…');
+      try { const r = await API.createTeam(name); closeModal(); toast(`Отбор „${r.teamName}" е готов`, 'ok'); navigate('/app/team'); }
+      catch (e) { busy(ev.currentTarget, false); err(e); }
+    };
   }
 
   // Лист с бързи действия (централният „+" долу)
@@ -255,6 +301,7 @@
         <div><b>${esc(u.name || 'Треньор')}</b><small>${esc(u.email || '')}</small>${u.teamName ? `<small>${esc(u.teamName)} · ${u.role === 'owner' ? 'собственик' : 'треньор'}</small>` : ''}</div></div>
       <div class="menu-list">
         <a href="#/app/team" class="menu-row">${I.team}<span>Отбор и покани</span>${I.chevR}</a>
+        <button class="menu-row" id="meTeams">${I.layers}<span>Смени / нов отбор</span>${I.chevR}</button>
         <button class="menu-row" id="meCal">${I.cal}<span>Google Calendar</span>${I.chevR}</button>
         <a href="#/" class="menu-row">${I.wave}<span>Начална страница</span>${I.chevR}</a>
         <button class="menu-row" id="meApi">${I.gear}<span>Връзка със сървъра</span>${I.chevR}</button>
@@ -262,6 +309,7 @@
       </div>` });
     $$('#modal-host a.menu-row').forEach(a => a.addEventListener('click', closeModal));
     $('#meCal').onclick = () => window.__SWS.calendarSync();
+    $('#meTeams').onclick = () => teamSheet();
     $('#meApi').onclick = () => openConfig();
     $('#meOut').onclick = () => { closeModal(); API.logout(); navigate('/'); };
   }
@@ -282,7 +330,7 @@
   const loading = (n = 4, h = 74) => `<div style="display:grid;gap:14px">${`<div class="skel" style="height:${h}px"></div>`.repeat(n)}</div>`;
   const emptyState = (icon, title, sub, action = '') => `<div class="empty rise"><div class="ico">${icon}</div><h3>${esc(title)}</h3><p class="subtle">${esc(sub||'')}</p>${action}</div>`;
 
-  window.__SWS = { app, shell, guard, modal, closeModal, ask, toast, err, navigate, render, route, routes, onLeave, logoMark, openConfig,
+  window.__SWS = { app, shell, guard, modal, teamSheet, newTeamForm, closeModal, ask, toast, err, navigate, render, route, routes, onLeave, logoMark, openConfig,
     busy, copyText, loading, emptyState, avatar, hashColor,
     I, esc, $, $$, initials, fmtDate, fmtDay, fmtShort, fmtTime, ageFrom, toDateInput, parseD, ymd, todayStr, addDays, dowIdx, telHref, plural,
     MONTHS, DOW, DOW_LONG, MOODS, MOOD_EMOJI, GENDERS, pad };
@@ -301,6 +349,21 @@
   const coachColors = (boot) => { const m = {}; (boot?.coaches || []).forEach((c, i) => m[c.id] = { name: c.fullName || c.email, color: COACH_PALETTE[i % COACH_PALETTE.length] }); return m; };
   const sessColor = (s, cc) => s.groupColor || (cc[s.coachId] || {}).color || '#9DB2D6';
   const firstName = (n) => String(n || 'Треньор').split(' ')[0];
+
+  /* ---------- Метри: „4x6, 5x8" дължини × басейна ---------- */
+  function parseSets(txt) {
+    const out = { lengths: 0, meters: 0, bad: [] };
+    String(txt || '').split(/[,;+\n]+/).forEach(tok => {
+      const t = tok.trim().toLowerCase(); if (!t) return;
+      const m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/) || t.match(/^()(\d{1,4})\s*(.*)$/);
+      if (!m) { out.bad.push(tok.trim()); return; }
+      const reps = m[1] ? +m[1] : 1, n = +m[2];
+      if (/^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '')) out.meters += reps * n; else out.lengths += reps * n;
+    });
+    return out;
+  }
+  const metersOf = (sets, pool) => { if (!sets) return null; const r = parseSets(sets); const v = Math.round(r.lengths * (pool || 25) + r.meters); return v > 0 ? v : null; };
+  const fmtM = (m) => m >= 1000 ? (m / 1000).toFixed(m % 1000 ? 2 : 0).replace('.', ',') + ' км' : m + ' м';
 
   /* ---------- Бутони за присъствие (три състояния) ---------- */
   // true = присъства, false = отсъства, null = неотбелязано. Повторно докосване = изчистване.
@@ -407,7 +470,7 @@
       ${avatar(p.firstName || p.childName, p.lastName || '')}
       <div class="krow-main">
         <div class="krow-name">${esc(p.childName)} ${alert}</div>
-        <div class="krow-meta">${sop}${abs}${p.mood ? `<span>${MOOD_EMOJI[p.mood] || ''}</span>` : ''}${notes ? `<span class="subtle">${I.edit}${notes}</span>` : ''}</div>
+        <div class="krow-meta">${sop}${abs}${p.meters ? `<span class="tag tag-m" title="${esc(p.sets || '')}">🏊 ${fmtM(p.meters)}</span>` : ''}${p.mood ? `<span>${MOOD_EMOJI[p.mood] || ''}</span>` : ''}${notes ? `<span class="subtle">${I.edit}${notes}</span>` : ''}</div>
       </div>
       ${opts.details ? `<button type="button" class="btn-icon btn-ghost krow-more" data-more aria-label="Бележки за ${esc(p.childName)}">${I.edit}</button>` : ''}
       ${attButtons(p.attended)}
@@ -446,9 +509,12 @@
     await drawToday();
   });
 
-  async function drawToday() {
-    let d;
-    try { d = await API.today(todayStr()); } catch (e) { return err(e); }
+  async function drawToday(fresh) {
+    const date = todayStr();
+    try { await API.live('today', { date }, (d) => paintToday(d)); }
+    catch (e) { return err(e); }
+  }
+  function paintToday(d) {
     const host = $('#todaySessions'); if (!host) return;
     if (!d.sessions.length) {
       host.innerHTML = emptyState(I.sun, 'Днес няма тренировки', 'Почивен ден или още не са добавени.',
@@ -506,16 +572,19 @@
     const alerts = d.alerts || [];
     const cal = d.calendar || [];
     cal.forEach(ev => _gcalById[ev.key] = ev);
+    const offs = cal.filter(ev => ev.kind === 'off');
+    const rest = cal.filter(ev => ev.kind !== 'off');
     const calCard = cal.length ? `
       <section class="card card-pad rise side-card">
         <div class="card-section-title"><span class="ico">${I.cal}</span>Днес в Google Calendar</div>
-        <div class="up-list">${cal.map(ev => `
+        ${offs.map(ev => `<div class="gc-off">🌴 <b>${esc(firstName(ev.coachName))}</b> · ${esc(ev.title)}${ev.allDay ? '' : ` <small>${fmtTime(ev.startTime)}–${fmtTime(ev.endTime)}</small>`}</div>`).join('')}
+        <div class="up-list">${rest.map(ev => `
           <div class="gc-row ${ev.childId ? 'known' : ''}">
             <span class="up-t">${fmtTime(ev.startTime)}</span>
-            <span class="gc-n">${ev.childName ? `<b>✓ ${esc(ev.childName)}</b>` : `<b>${esc(ev.title)}</b><small>непознат — кой е?</small>`}</span>
+            <span class="gc-n">${ev.childName ? `<b>✓ ${esc(ev.childName)}</b>` : `<b>${esc(ev.title)}</b><small>непознат — кой е?</small>`}<small>${esc(firstName(ev.coachName))}</small></span>
             <button class="btn ${ev.childId ? 'btn-primary' : 'btn-soft'} btn-sm" data-gk="${esc(ev.key)}">${ev.childId ? 'Добави' : 'Кой е?'}</button>
           </div>`).join('')}</div>
-        ${cal.filter(e => e.childId).length > 1 ? `<button class="btn btn-ghost btn-sm" id="gcTodayAll" style="margin-top:10px">${I.plus} Добави всички разпознати</button>` : ''}
+        ${rest.filter(e => e.childId).length > 1 ? `<button class="btn btn-ghost btn-sm" id="gcTodayAll" style="margin-top:10px">${I.plus} Добави всички разпознати</button>` : ''}
       </section>` : '';
     side.innerHTML = calCard + `
       <section class="card card-pad rise side-card">
@@ -541,7 +610,7 @@
       const ev = _gcalById[b.dataset.gk];
       if (ev.childId) importEvents([ev], drawToday, b); else gcalDetail(ev.key, drawToday);
     });
-    const all = $('#gcTodayAll'); if (all) all.onclick = () => importEvents(cal.filter(e => e.childId), drawToday, all);
+    const all = $('#gcTodayAll'); if (all) all.onclick = () => importEvents(rest.filter(e => e.childId), drawToday, all);
   }
 
   /* ============================================================
@@ -559,6 +628,7 @@
         <div><h1 class="pagettl">График</h1><p class="subtle">Тренировки по дни</p></div>
         <div class="quick">
           <button class="btn btn-soft" id="gcalBtn">${I.link}<span>Google Calendar</span></button>
+          <button class="btn-icon btn-ghost" id="calRefresh" aria-label="Обнови от Google Calendar" title="Обнови">${I.refresh}</button>
           <button class="btn btn-primary hide-m" id="newSession">${I.plus}<span>Нова тренировка</span></button>
         </div>
       </div>
@@ -577,6 +647,11 @@
       </div>`);
     $('#newSession').onclick = () => sessionForm();
     $('#gcalBtn').onclick = () => calendarSync();
+    $('#calRefresh').onclick = async (e) => {
+      const b = e.currentTarget; b.classList.add('spinning');
+      try { await API.read('calendarEvents', { year: calState.y, month: calState.m + 1, fresh: true }); } catch {}
+      b.classList.remove('spinning'); API.clearCache(); drawCalendar();
+    };
     $('#prevM').onclick = () => { calState.m--; if (calState.m<0){calState.m=11;calState.y--;} drawCalendar(); };
     $('#nextM').onclick = () => { calState.m++; if (calState.m>11){calState.m=0;calState.y++;} drawCalendar(); };
     $('#todayBtn').onclick = () => { calState.y=now.getFullYear(); calState.m=now.getMonth(); drawCalendar(); };
@@ -587,26 +662,27 @@
   });
 
   let calRenderToken = 0;
-  let _monthCache = {};
 
   async function drawCalendar() {
     const myToken = ++calRenderToken;
     const t = $('#calTitle'); if (!t) return;
     t.textContent = `${MONTHS[calState.m]} ${calState.y}`;
     const body = $('#calBody');
-    const key = calState.y + '-' + calState.m;
-    if (_monthCache[key]) paintCalendar(_monthCache[key]); else body.innerHTML = loading();
-    let list = [], calEvents = [], boot = null;
+    const y = calState.y, m = calState.m + 1;
+    if (API.peek('month', { year: y, month: m }) === undefined) body.innerHTML = loading();
+    let boot = API.peekBoot();
+    if (!boot) { try { boot = await API.getBoot(); } catch {} }
     try {
-      [list, calEvents, boot] = await Promise.all([
-        API.sessions(calState.y, calState.m + 1).then(r => r || []),
-        API.calendarEvents(calState.y, calState.m + 1).then(r => r || []).catch(() => []),
-        API.getBoot().catch(() => null)
-      ]);
-    } catch (e) { return err(e); }
-    if (myToken !== calRenderToken) return;
-    _monthCache[key] = { list, calEvents, boot };
-    paintCalendar(_monthCache[key]);
+      await API.live('month', { year: y, month: m }, (d) => {
+        if (myToken !== calRenderToken) return;
+        paintCalendar({ list: d.sessions || [], calEvents: d.calendar || [], boot: API.peekBoot() || boot });
+      });
+    } catch (e) { if (myToken === calRenderToken) err(e); }
+    // съседните месеци — за моментално прелистване
+    if (myToken === calRenderToken) setTimeout(() => {
+      [[y, m - 1], [y, m + 1]].map(([yy, mm]) => mm < 1 ? [yy - 1, 12] : mm > 12 ? [yy + 1, 1] : [yy, mm])
+        .forEach(([yy, mm]) => { if (API.peek('month', { year: yy, month: mm }) === undefined) API.month(yy, mm).catch(() => {}); });
+    }, 600);
   }
 
   function paintCalendar({ list, calEvents, boot }) {
@@ -617,7 +693,14 @@
     Object.values(byDay).forEach(a => a.sort((x, y) => (x.startTime || '').localeCompare(y.startTime || '')));
     const byDayCal = {};
     calEvents = calEvents.filter(ev => !ev.sessionId); // внесените вече са тренировки
-    calEvents.forEach(ev => { const d = parseD(ev.date).getDate(); (byDayCal[d] ||= []).push(ev); _gcalById[ev.key || ev.id] = ev; });
+    calEvents.forEach(ev => {
+      _gcalById[ev.key || ev.id] = ev;
+      // почивка за няколко дни → на всеки ден от месеца
+      let d0 = parseD(ev.date), d1 = ev.endDate ? parseD(ev.endDate) : d0;
+      for (let x = d0, n = 0; x <= d1 && n < 62; x = addDays(x, 1), n++) {
+        if (x.getFullYear() === calState.y && x.getMonth() === calState.m) (byDayCal[x.getDate()] ||= []).push(ev);
+      }
+    });
     const known = calEvents.filter(ev => ev.childId && !ev.allDay);
     const banner = known.length ? `<div class="gcal-banner"><span>${I.cal}</span><p>В Google Calendar разпознах <b>${known.length}</b> ${known.length === 1 ? 'тренировка' : 'тренировки'} с плувци от отбора (${esc([...new Set(known.map(k => k.childName.split(' ')[0]))].slice(0, 4).join(', '))}${new Set(known.map(k => k.childName)).size > 4 ? '…' : ''}).</p><button class="btn btn-primary btn-sm" id="gcalImportAll">${I.plus} Добави ги в графика</button></div>` : '';
 
@@ -627,6 +710,7 @@
       ? groups.map(g => `<span class="legend-item"><span class="dot" style="background:${g.color}"></span>${esc(g.name)}</span>`).join('')
       : Object.values(cc).map(c => `<span class="legend-item"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</span>`).join('');
     if (calEvents.length) legend += `<span class="legend-item"><span class="dot dot-gcal"></span>Google Calendar (само преглед)</span>`;
+    if (calEvents.some(e => e.kind === 'off')) legend += `<span class="legend-item">🌴 почивка</span>`;
     const legendHtml = (legend ? `<div class="coach-legend">${legend}</div>` : '') + banner;
 
     const today = new Date();
@@ -646,9 +730,7 @@
               <div class="slot-main"><div class="t">${esc(s.groupName || s.title || 'Тренировка')}${s.status === 'cancelled' ? ' · отменена' : ''}</div>
                 <div class="s">${esc(firstName(s.coachName))}${s.location ? ' · ' + esc(s.location) : ''} · ${s.markedCount ? `${s.presentCount}/${s.participantCount} дошли` : peopleCount(s.participantCount)}</div></div>
               ${I.chevR}</button>`).join('')}
-            ${(byDayCal[d] || []).map(ev => `<button class="slot slot-gcal" data-gcal="${esc(ev.key || ev.id)}">
-              <div class="slot-time">${ev.allDay ? 'ден' : fmtTime(ev.startTime)}</div>
-              <div class="slot-main"><div class="t">${ev.childName ? '✓ ' + esc(ev.childName) : esc(ev.title)}</div><div class="s">Google Calendar · ${ev.childName ? esc(ev.title) : 'кой е това?'}</div></div>${I.chevR}</button>`).join('')}
+            ${(byDayCal[d] || []).map(ev => gcalSlot(ev)).join('')}
           </div></div>`;
       }).join('')}</div>`;
       $$('.slot[data-sid]', body).forEach(el => el.onclick = () => sessionDetail(el.dataset.sid, refreshCal));
@@ -676,7 +758,7 @@
         return `<div class="cal-ev ${s.status === 'cancelled' ? 'is-cancelled' : ''}" data-sid="${s.id}" style="--ec:${sessColor(s, cc)}" title="${esc(title)}"><b>${fmtTime(s.startTime)}</b> ${esc(s.groupName || s.title || firstName(s.coachName))}</div>`;
       }).join('') + (rest > 0 ? `<div class="cal-more">+${rest} още</div>` : '');
       const calArr = byDayCal[d] || [];
-      const calPills = calArr.slice(0, 2).map(ev => `<div class="cal-ev cal-gcal ${ev.childId ? 'is-known' : ''}" data-gcal="${esc(ev.key || ev.id)}" title="${esc(ev.title)} (Google Calendar)${ev.childName ? ' → ' + esc(ev.childName) : ''}">${ev.allDay ? '' : `<b>${fmtTime(ev.startTime)}</b> `}${ev.childName ? `✓ ${esc(ev.childName)}` : esc(ev.title)}</div>`).join('')
+      const calPills = calArr.slice(0, 2).map(ev => `<div class="cal-ev cal-gcal ${ev.childId ? 'is-known' : ''} ${ev.kind === 'off' ? 'is-off' : ''}" data-gcal="${esc(ev.key || ev.id)}" title="${esc(ev.title)} · ${esc(ev.coachName || '')} (Google Calendar)${ev.childName ? ' → ' + esc(ev.childName) : ''}">${ev.kind === 'off' ? `🌴 ${esc(firstName(ev.coachName))}` : `${ev.allDay ? '' : `<b>${fmtTime(ev.startTime)}</b> `}${ev.childName ? `✓ ${esc(ev.childName)}` : esc(ev.title)}`}</div>`).join('')
         + (calArr.length > 2 ? `<div class="cal-more">+${calArr.length - 2} от календара</div>` : '');
       cells += `<div class="cal-cell ${isToday?'today':''} ${dow>=5?'weekend':''}" data-day="${d}">
         <div class="cal-daynum">${d}</div><div class="cal-events">${events}${calPills}</div></div>`;
@@ -691,7 +773,14 @@
     const b = $('#gcalImportAll'); if (!b) return;
     b.onclick = () => importEvents(known, refreshCal, b);
   }
-  const refreshCal = () => { _monthCache = {}; if ($('#calBody')) drawCalendar(); };
+  const refreshCal = () => { if ($('#calBody')) drawCalendar(); };
+  // Ред за събитие от Google Calendar (списък/ден)
+  const gcalSlot = (ev) => ev.kind === 'off'
+    ? `<button class="slot slot-gcal slot-off" data-gcal="${esc(ev.key || ev.id)}"><div class="slot-time">🌴</div>
+        <div class="slot-main"><div class="t">${esc(ev.coachName || 'Треньор')} · ${esc(ev.title)}</div><div class="s">${ev.allDay ? 'цял ден' : fmtTime(ev.startTime) + '–' + fmtTime(ev.endTime)} · от Google Calendar</div></div>${I.chevR}</button>`
+    : `<button class="slot slot-gcal" data-gcal="${esc(ev.key || ev.id)}">
+        <div class="slot-time">${ev.allDay ? 'ден' : fmtTime(ev.startTime)}</div>
+        <div class="slot-main"><div class="t">${ev.childName ? '✓ ' + esc(ev.childName) : esc(ev.title)}</div><div class="s">${esc(firstName(ev.coachName))} · Google Calendar · ${ev.childName ? esc(ev.title) : 'кой е това?'}</div></div>${I.chevR}</button>`;
 
   // Внася събития от Google Calendar като тренировки (с плувеца вътре)
   async function importEvents(evs, after, btn) {
@@ -709,6 +798,15 @@
   async function gcalDetail(id, after) {
     const ev = _gcalById[id];
     if (!ev) return;
+    if (ev.kind === 'off') {
+      const span = ev.endDate && ev.endDate !== ev.date ? `${fmtDate(ev.date)} – ${fmtDate(ev.endDate)}` : fmtDay(ev.date);
+      modal({ title: '🌴 ' + (ev.title || 'Почивка'), body: `
+        <div class="chips"><span class="chip">${I.user}&nbsp;${esc(ev.coachName || '')}</span><span class="chip">${I.cal}&nbsp;${esc(span)}</span>
+        ${ev.allDay ? '' : `<span class="chip">${I.clock}&nbsp;${fmtTime(ev.startTime)}–${fmtTime(ev.endTime)}</span>`}</div>
+        <p class="subtle" style="margin-top:12px">От Google Calendar на ${esc(firstName(ev.coachName))}. Показва се, защото в заглавието пише почивка/отпуск/болничен.</p>`,
+        footer: `<button class="btn btn-primary" data-close>Добре</button>` });
+      return;
+    }
     after = after || (() => { refreshCal(); if ($('#todaySessions')) drawToday(); });
     const when = ev.allDay ? 'Цял ден' : `${fmtTime(ev.startTime)}${ev.endTime ? '–' + fmtTime(ev.endTime) : ''}`;
     let kids = [];
@@ -784,9 +882,7 @@
           <div class="s">${esc(s.coachName)}${s.location ? ' · ' + esc(s.location) : ''} · ${peopleCount(s.participantCount)}</div></div>
         ${I.chevR}
       </button>`).join('') : emptyState(I.cal, 'Няма тренировки', 'Добави първата за този ден.');
-    const calRows = calEvents.map(ev => `
-      <button class="slot slot-gcal" data-gcal="${esc(ev.key || ev.id)}"><div class="slot-time">${ev.allDay ? 'ден' : fmtTime(ev.startTime)}</div>
-        <div class="slot-main"><div class="t">${ev.childName ? '✓ ' + esc(ev.childName) : esc(ev.title)}</div><div class="s">Google Calendar · ${ev.childName ? esc(ev.title) : 'кой е това?'}</div></div>${I.chevR}</button>`).join('');
+    const calRows = calEvents.map(gcalSlot).join('');
     modal({ title: fmtDay(date), body: `<div class="stagger" style="display:grid;gap:12px">${rows}${calRows}</div>`,
       footer: `<button class="btn btn-ghost" data-close>Затвори</button><button class="btn btn-primary" id="addOnDay">${I.plus} Добави</button>` });
     $('#addOnDay').onclick = () => { closeModal(); sessionForm(null, date); };
@@ -830,7 +926,10 @@
         <div class="field"><label for="s_coach">Треньор</label><select class="select" id="s_coach">${coaches.map(c => `<option value="${c.id}" ${coachSel === c.id ? 'selected' : ''}>${esc(c.fullName || c.email)}</option>`).join('')}</select></div>
         <div class="field"><label for="s_dur">Продължителност</label><select class="select" id="s_dur">${durOpts}</select></div>
       </div>
-      <div class="field"><label for="s_loc">Място</label><input class="input" id="s_loc" placeholder="Басейн / зала" value="${esc(existing?.location || '')}"></div>
+      <div class="grid-2">
+        <div class="field"><label for="s_loc">Място</label><input class="input" id="s_loc" placeholder="Басейн / зала" value="${esc(existing?.location || '')}"></div>
+        <div class="field"><label for="s_pool">Басейн (м)</label><input class="input" id="s_pool" type="number" min="5" max="100" step="0.5" inputmode="decimal" placeholder="${(boot.team && boot.team.poolLength) || 25} (по подразбиране)" value="${existing?.poolOverride || ''}"></div>
+      </div>
       ${existing ? '' : `
         <label class="switch"><input type="checkbox" id="s_rep"><span></span>Повтаряй всяка седмица</label>
         <div id="repBox" class="rep-box" hidden>
@@ -876,8 +975,9 @@
       const btn = ev.currentTarget;
       const dto = { sessionDate: $('#s_date').value, startTime: $('#s_time').value + ':00', groupId: groupId || null,
         location: $('#s_loc').value.trim() || null, coachId: $('#s_coach').value, durationMin: +$('#s_dur').value,
-        notes: $('#s_notes').value.trim() || null };
+        notes: $('#s_notes').value.trim() || null, poolLength: $('#s_pool').value ? +$('#s_pool').value : null };
       if (!dto.sessionDate) return toast('Избери дата', 'err');
+      if (dto.poolLength !== null && (dto.poolLength < 5 || dto.poolLength > 100)) return toast('Басейнът трябва да е между 5 и 100 м', 'err');
       if (people) {
         if (people.pending()) return toast('Натисни Enter, за да добавиш „' + people.pending() + '"', 'err');
         dto.people = people.get();
@@ -905,13 +1005,31 @@
   function refreshAll() { if ($('#todaySessions')) drawToday(); if ($('#calBody')) refreshCal(); }
 
   /* ---------- Детайли на тренировка: присъствие с едно докосване ---------- */
+  let _sdToken = 0;
   async function sessionDetail(id, after) {
     after = after || refreshAll;
+    const tok = ++_sdToken;
     modal({ title: 'Тренировка', body: loading(3, 60), large: true });
     $('#modal-host .modal').classList.add('modal-tall');
-    let s, boot;
-    try { [s, boot] = await Promise.all([API.session(id), API.getBoot()]); }
-    catch (e) { closeModal(); return err(e); }
+    let boot = API.peekBoot();
+    const cached = API.peek('session', { id });
+    let touched = false, shown = null;
+    const draw = (s) => {
+      if (tok !== _sdToken || !$('#modal-host .modal-body') || touched) return;
+      shown = JSON.stringify(s);
+      drawSessionDetail(s, boot, id, after);
+      const mb = $('#modal-host .modal-body');
+      ['click', 'input', 'focusin'].forEach(evn => mb.addEventListener(evn, () => { touched = true; }, { once: true }));
+    };
+    if (cached && boot) draw(cached);
+    try {
+      const [s, b] = await Promise.all([API.read('session', { id }), boot ? Promise.resolve(boot) : API.getBoot()]);
+      boot = b;
+      if (JSON.stringify(s) !== shown) { touched = false; draw(s); }
+    } catch (e) { if (!shown) { closeModal(); return err(e); } }
+  }
+
+  function drawSessionDetail(s, boot, id, after) {
     const kids = boot.children || [], groups = boot.groups || [];
     const present = new Set((s.participants || []).map(p => p.childId));
     const addable = kids.filter(c => !present.has(c.id));
@@ -927,6 +1045,7 @@
           <small>${esc(fmtDay(s.sessionDate))}</small>
           <small>${esc(s.coachName)}${s.location ? ' · ' + esc(s.location) : ''}</small>
         </div>
+        <div class="sd-m"><small>басейн ${s.poolLength || 25} м</small>${s.totalMeters ? `<b>${fmtM(s.totalMeters)}</b><small>общо днес</small>` : ''}</div>
       </div>
       ${s.notes && !s.fromCalendar ? `<p class="note">${esc(s.notes)}</p>` : ''}
       <div class="act-row">
@@ -939,12 +1058,13 @@
         <strong>Плувци <span class="badge" id="sdSum"></span></strong>
         <div class="sd-add">
           ${parts.some(p => p.attended === null) ? `<button class="btn btn-soft btn-sm" id="allIn">${I.check} Всички са тук</button>` : ''}
+          ${parts.length ? `<button class="btn btn-soft btn-sm" id="setsAll" title="Еднакви серии за всички присъстващи">🏊 Метри</button>` : ''}
           ${addGroups.length ? `<select class="select select-sm" id="addGroup" aria-label="Добави група"><option value="">+ Група…</option>${addGroups.map(g => `<option value="${g.id}">${esc(g.name)} (${g.count})</option>`).join('')}</select>` : ''}
         </div>
       </div>
       <div class="ns-wrap sd-name"><input class="input" id="addName" type="text" placeholder="+ Добави по име (Enter)…" autocomplete="off" enterkeyhint="done"><div class="ns-box" id="addNameBox" hidden></div></div>
       <div class="klist" id="partList">${parts.length ? parts.map(p => kidRow(p, { details: true })).join('') : emptyState(I.kids, 'Още няма плувци', 'Напиши име горе или добави цяла група.')}</div>
-      <p class="hint" style="margin-top:10px">Докосни ✓ или ✗ — записва се веднага. ✎ отваря бележките за плувеца.</p>`;
+      <p class="hint" style="margin-top:10px">Докосни ✓ или ✗ — записва се веднага. ✎ отваря бележките и метрите за плувеца.</p>`;
     $('#modal-host .modal-body').innerHTML = body;
 
     const list = $('#partList');
@@ -962,6 +1082,7 @@
     $$('#modal-host [data-close]').forEach(b => b.addEventListener('click', () => { if (dirty) after(); }));
 
     $('#sdEdit').onclick = () => sessionForm(s, null, after);
+    const sa = $('#setsAll'); if (sa) sa.onclick = () => setsForAll(s, parts, after);
     $('#sdCancel').onclick = async () => {
       if (!cancelled && !await ask('Отмяна на тренировката', 'Тренировката остава в графика, но се отбелязва като отменена и не се брои в посещаемостта.', 'Отмени тренировката', true)) return sessionDetail(id, after);
       try { await API.cancelSession(id, !cancelled); toast(cancelled ? 'Възстановена' : 'Отменена', 'ok'); refreshCal(); after(); sessionDetail(id, after); } catch (e) { err(e); }
@@ -1005,6 +1126,45 @@
     try { await API.deleteSession(s.id); toast('Изтрито', 'ok'); refreshCal(); after(); } catch (e) { err(e); }
   }
 
+  // Поле „Серии" с живо смятане на метрите
+  function setsField(id, value, pool) {
+    return `<div class="field"><label for="${id}">Плува (серии × дължини) <span class="subtle">басейн ${pool || 25} м</span></label>
+      <input class="input" id="${id}" value="${esc(value || '')}" placeholder="напр. 4x6, 5x8" inputmode="text" autocomplete="off">
+      <div class="qchips" data-sets="${id}">${['4x6', '5x8', '2x10', '1x20', '4x50м'].map(x => `<button type="button">${x}</button>`).join('')}</div>
+      <div class="sets-out" id="${id}_out"></div></div>`;
+  }
+  function bindSetsField(id, pool) {
+    const inp = $('#' + id), out = $('#' + id + '_out');
+    const paint = () => {
+      const r = parseSets(inp.value);
+      if (!inp.value.trim()) { out.innerHTML = '<span class="subtle">Пиши повторения × дължини: 4x6 = 4 пъти по 6 дължини. „4x50м" = направо в метри.</span>'; return; }
+      if (r.bad.length) { out.innerHTML = `<span class="txt-red">Не разбирам „${esc(r.bad[0])}" — пиши така: 4x6, 5x8</span>`; return; }
+      const m = Math.round(r.lengths * (pool || 25) + r.meters);
+      out.innerHTML = `<b>${fmtM(m)}</b> <span class="subtle">${r.lengths ? `= ${r.lengths} дължини × ${pool || 25} м` : ''}${r.meters ? `${r.lengths ? ' + ' : '= '}${r.meters} м` : ''}</span>`;
+    };
+    inp.addEventListener('input', paint);
+    $$(`[data-sets="${id}"] button`).forEach(b => b.onclick = () => { inp.value = (inp.value.trim() ? inp.value.trim().replace(/[,+]\s*$/, '') + ', ' : '') + b.textContent; paint(); inp.focus(); });
+    paint();
+  }
+  // Еднакви серии за всички присъстващи
+  function setsForAll(s, parts, after) {
+    const who = parts.filter(p => p.attended !== false);
+    modal({ title: '🏊 Метри за всички', body: `
+      <p class="subtle" style="margin-bottom:12px">За ${peopleCount(who.length)} (без отсъстващите). Различно за някого — през ✎ до името.</p>
+      ${setsField('sa_sets', '', s.poolLength)}`,
+      footer: `<button class="btn btn-ghost" id="sa_back">${I.chevL} Назад</button><button class="btn btn-primary" id="sa_ok">${I.check} Запиши за всички</button>` });
+    bindSetsField('sa_sets', s.poolLength);
+    $('#sa_back').onclick = () => sessionDetail(s.id, after);
+    $('#sa_ok').onclick = async (ev) => {
+      const v = $('#sa_sets').value.trim();
+      if (!v) return toast('Напиши серии, напр. 4x6, 5x8', 'err');
+      if (parseSets(v).bad.length) return toast('Пиши така: 4x6, 5x8', 'err');
+      busy(ev.currentTarget, true, 'Запис…');
+      try { await API.updateSets(s.id, who.map(p => ({ childId: p.childId, sets: v }))); toast('Записано', 'ok'); after(); sessionDetail(s.id, after); }
+      catch (e) { busy(ev.currentTarget, false); err(e); }
+    };
+  }
+
   // Бележки за едно дете в една тренировка
   function participantNotes(s, p, after) {
     modal({ title: `${p.childName} · ${fmtShort(s.sessionDate)}`, body: `
@@ -1012,6 +1172,7 @@
       <div class="field"><label>Присъствие</label>${attButtons(p.attended, 'att2-lg')}</div>
       <div class="field"><label for="pn_swam">Какво плува</label><textarea class="textarea" id="pn_swam" placeholder="напр. 6×25 крака гръб, дишане настрани…">${esc(p.swamWhat || '')}</textarea>
         <div class="qchips" data-for="pn_swam">${['крака с дъска','звездичка','плъзгане','дишане','кроул','гръб','скокове','игри във водата'].map(x => `<button type="button">${x}</button>`).join('')}</div></div>
+      ${setsField('pn_sets', p.sets, s.poolLength)}
       <div class="field"><label>Настроение</label><div class="moodpick" id="pn_mood">${MOODS.map(m => `<button type="button" data-m="${m}" class="${p.mood === m ? 'on' : ''}" title="${m}">${MOOD_EMOJI[m]}</button>`).join('')}</div></div>
       <div class="field"><label for="pn_prog">Какво постигна днес <span class="subtle">(за треньорите)</span></label><textarea class="textarea" id="pn_prog" placeholder="Напр. първи път без коланче!">${esc(p.dailyProgress || '')}</textarea></div>
       <div class="field"><label for="pn_parent">Бележка за родителя <span class="subtle">(вижда я)</span></label><textarea class="textarea" id="pn_parent" placeholder="Напр. Браво! Днес доплува 10 м сама 💪">${esc(p.parentNote || '')}</textarea></div>
@@ -1023,6 +1184,7 @@
     let mood = p.mood || null;
     $$('#pn_mood button').forEach(b => b.onclick = () => { mood = mood === b.dataset.m ? null : b.dataset.m; $$('#pn_mood button').forEach(x => x.classList.toggle('on', x.dataset.m === mood)); });
     $$('.qchips button').forEach(b => b.onclick = () => { const ta = $('#' + b.parentElement.dataset.for); ta.value = (ta.value.trim() ? ta.value.trim() + ', ' : '') + b.textContent; ta.focus(); });
+    bindSetsField('pn_sets', s.poolLength);
     $('#pn_back').onclick = () => sessionDetail(s.id, after);
     $('#pn_rm').onclick = async () => {
       if (!await ask('Махане', `Да махна ли ${esc(p.childName)} от тази тренировка?`, 'Махни', true)) return participantNotes(s, p, after);
@@ -1030,9 +1192,12 @@
     };
     $('#pn_save').onclick = async (ev) => {
       busy(ev.currentTarget, true, 'Запис…');
+      const bad = parseSets($('#pn_sets').value).bad;
+      if (bad.length) { busy(ev.currentTarget, false); return toast(`Не разбирам „${bad[0]}". Пиши: 4x6, 5x8`, 'err'); }
       try {
         await API.upsertParticipant(s.id, { childId: p.childId, attended: att, mood,
           swamWhat: $('#pn_swam').value.trim() || null, dailyProgress: $('#pn_prog').value.trim() || null,
+          sets: $('#pn_sets').value.trim() || null,
           parentNote: $('#pn_parent').value.trim() || null });
         toast('Запазено', 'ok'); after(); sessionDetail(s.id, after);
       } catch (e) { busy(ev.currentTarget, false); err(e); }
@@ -1050,18 +1215,96 @@
     return 'https://calendar.google.com/calendar/render?' + q.toString();
   }
 
-  /* ---------- Абонамент в Google Calendar ---------- */
-  async function calendarSync() {
-    modal({ title: 'Google Calendar', body: loading(2, 60) });
+  /* ---------- Google Calendar: в сайта (свързване) и от сайта (абонамент) ---------- */
+  async function calendarSync(tab = 'in') {
+    modal({ title: 'Google Calendar', body: `
+      <div class="seg seg-2" id="gcTab" style="margin-bottom:16px">
+        <button class="seg-btn ${tab === 'in' ? 'active' : ''}" data-t="in">Календарът → сайта</button>
+        <button class="seg-btn ${tab === 'out' ? 'active' : ''}" data-t="out">Сайтът → календара</button>
+      </div><div id="gcPane">${loading(2, 60)}</div>` });
+    $$('#gcTab .seg-btn').forEach(b => b.onclick = () => calendarSync(b.dataset.t));
+    if (tab === 'in') return calendarIn();
+    return calendarOut();
+  }
+
+  // Моят Google Calendar → в графика на сайта (само подбраните събития)
+  async function calendarIn() {
+    let st;
+    try { st = await API.calendarSettings(); } catch (e) { closeModal(); return err(e); }
+    const pane = $('#gcPane'); if (!pane) return;
+    const badge = st.status === 'ok' ? '<span class="tag tag-ok">свързан</span>'
+      : st.status === 'error' ? '<span class="tag tag-warn">грешка</span>'
+      : st.status === 'pending' ? '<span class="tag">зарежда…</span>' : '<span class="tag">не е свързан</span>';
+    const ago = st.lastSync ? Math.max(0, Math.round((Date.now() - Date.parse(st.lastSync)) / 60000)) : null;
+    pane.innerHTML = `
+      <div class="gc-me">
+        <div><b>Моят календар</b> ${badge}<small>${st.hasUrl ? (st.status === 'ok' ? `${st.eventCount} събития · обновен ${ago < 1 ? 'сега' : `преди ${ago} мин`}` : esc(st.myEmail)) : 'Постави тайния адрес отдолу'}</small></div>
+        ${st.hasUrl ? `<label class="switch"><input type="checkbox" id="gcOn" ${st.calendarOn ? 'checked' : ''}><span></span></label>` : ''}
+      </div>
+      ${st.error ? `<div class="note warn" style="margin-top:10px">${esc(st.error)}</div>` : ''}
+      <div class="field" style="margin-top:14px">
+        <label for="gcUrl">Таен адрес във формат iCal</label>
+        <div class="invite-box"><input class="input" id="gcUrl" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value="" autocomplete="off" spellcheck="false">
+          <button class="btn btn-primary" id="gcSave">${I.check}<span class="hide-xs">${st.hasUrl ? 'Смени' : 'Свържи'}</span></button></div>
+        ${st.hasUrl ? `<span class="hint">Сега: ${esc(st.icsUrl)}</span>` : ''}
+      </div>
+      <details class="howto" ${st.hasUrl ? '' : 'open'}><summary>Къде е този адрес? (30 секунди, веднъж)</summary>
+        <ol>
+          <li>Отвори <b>calendar.google.com</b> на компютър (на телефона — в браузъра, режим „Компютър").</li>
+          <li>Вляво при „Моите календари": до твоя календар <b>⋮ → Настройки и споделяне</b>.</li>
+          <li>Слез до <b>„Интегриране на календара"</b>.</li>
+          <li>Копирай <b>„Таен адрес във формат iCal"</b> (завършва на <code>basic.ics</code>) и го постави горе.</li>
+        </ol>
+        <p class="subtle">Адресът е само за четене и не се показва на никого. Сайтът проверява календара на всеки 10 мин (↻ в графика — веднага).</p></details>
+      <div class="gc-rules">
+        <b>Какво излиза в сайта</b>
+        <ul>
+          <li>✓ Събития с <b>име на плувец</b> от отбора — „Йоан", „Мария П." (тренировки)</li>
+          <li>🌴 <b>Почивка, отпуск, болничен</b> — за да знае колегата, че те няма</li>
+          <li>🏷 Събития с ключова дума на отбора${st.keywords ? `: <b>${esc(st.keywords)}</b>` : ''}</li>
+          <li>🙈 Всичко останало е скрито. „<b>#лично</b>" в заглавието скрива и тренировка.</li>
+        </ul>
+        <p class="subtle">Примери: „Йоан" → излиза · „Почивка" → излиза · „Гироси в 12" → не · „Басейн вечерта" → не</p>
+      </div>
+      ${st.canEditKeywords ? `
+        <div class="field" style="margin-top:12px"><label for="gcKw">Ключови думи на отбора <span class="subtle">(със запетая)</span></label>
+          <input class="input" id="gcKw" value="${esc(st.keywords)}" placeholder="#sws, състезание, лагер">
+          <span class="hint">Събитие с някоя от тези думи излиза за целия отбор. Остави празно — само имена и почивки.</span></div>
+        <button class="btn btn-soft btn-sm" id="gcKwSave">${I.check} Запази думите</button>` : ''}
+      <div class="gc-coaches">${(st.coaches || []).map(c => `<span class="chip">${c.on ? '🟢' : '⚪'} ${esc(c.fullName)}</span>`).join('')}</div>`;
+    const on = $('#gcOn');
+    if (on) on.onchange = async (e) => {
+      try { await API.updateCalendarSettings({ calendarOn: e.target.checked }); toast(e.target.checked ? 'Включено' : 'Изключено', 'ok'); refreshCal(); calendarIn(); }
+      catch (ex) { e.target.checked = !e.target.checked; err(ex); }
+    };
+    $('#gcSave').onclick = async (e) => {
+      const v = $('#gcUrl').value.trim();
+      if (!v) return toast('Постави адреса от Google Calendar', 'err');
+      if (!/^(https|webcal):\/\//i.test(v)) return toast('Адресът започва с https://', 'err');
+      if (!/\.ics(\?|$)/i.test(v) && !await ask('Сигурен ли си?', 'Адресът не завършва на .ics — трябва „Таен адрес във формат iCal". Да опитам ли все пак?', 'Опитай')) return calendarSync('in');
+      const b = e.currentTarget; busy(b, true, '');
+      try { await API.updateCalendarSettings({ icsUrl: v }); toast('Свързано — проверявам календара', 'ok'); refreshCal(); calendarIn(); }
+      catch (ex) { busy(b, false); err(ex); }
+    };
+    const ks = $('#gcKwSave'); if (ks) ks.onclick = async () => {
+      busy(ks, true);
+      try { await API.updateCalendarSettings({ keywords: $('#gcKw').value }); toast('Запазено', 'ok'); refreshCal(); calendarIn(); }
+      catch (e) { busy(ks, false); err(e); }
+    };
+  }
+
+  // Тренировките от сайта → абонамент в Google Calendar
+  async function calendarOut() {
     let f;
     try { f = await API.calendarFeed(); } catch (e) { closeModal(); return err(e); }
-    const base = API.getBase();
+    const pane = $('#gcPane'); if (!pane) return;
+    const base = f.serviceUrl || API.getBase();
     const urlAll = `${base}?ics=${f.key}`;
     const urlMine = `${urlAll}&coach=${encodeURIComponent(f.coachId)}`;
     const sub = (u) => 'https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(u.replace(/^https?:/, 'webcal:'));
     const isOwner = (API.getUser() || {}).role === 'owner';
-    $('#modal-host .modal-body').innerHTML = `
-      <p>Тренировките се появяват автоматично в твоя Google Calendar и на телефона. Промените в графика се синхронизират сами (Google проверява на няколко часа).</p>
+    pane.innerHTML = `
+      <p>Тренировките от сайта се появяват в твоя Google Calendar и на телефона. Промените се синхронизират сами (Google проверява на няколко часа).</p>
       <div class="seg seg-2" id="feedSeg" style="margin:18px 0 14px"><button class="seg-btn active" data-u="all">Целият отбор</button><button class="seg-btn" data-u="mine">Само моите</button></div>
       <a class="btn btn-primary btn-block btn-lg" id="feedAdd" target="_blank" rel="noopener" href="${sub(urlAll)}">${I.cal} Добави в Google Calendar</a>
       <div class="invite-box" style="margin-top:14px"><input class="input" readonly id="feedUrl" value="${esc(urlAll)}" aria-label="Адрес на календара"><button class="btn btn-soft" id="feedCopy">${I.copy}</button></div>
@@ -1078,12 +1321,12 @@
     $('#feedCopy').onclick = () => copyText(cur);
     const rg = $('#feedRegen');
     if (rg) rg.onclick = async () => {
-      if (!await ask('Нов адрес', 'Всички, които са абонирани със стария адрес, ще трябва да добавят новия.', 'Смени', true)) return calendarSync();
-      try { await API.calendarFeed(true); toast('Новият адрес е готов', 'ok'); calendarSync(); } catch (e) { err(e); }
+      if (!await ask('Нов адрес', 'Всички, които са абонирани със стария адрес, ще трябва да добавят новия.', 'Смени', true)) return calendarSync('out');
+      try { await API.calendarFeed(true); toast('Новият адрес е готов', 'ok'); calendarSync('out'); } catch (e) { err(e); }
     };
   }
 
-  Object.assign(S, { sessionForm, sessionDetail, calendarSync, attButtons, paintAtt, bindAtt, kidRow, refreshAll, peoplePicker, nameSuggest, peopleCount });
+  Object.assign(S, { parseSets, metersOf, fmtM, sessionForm, sessionDetail, calendarSync, attButtons, paintAtt, bindAtt, kidRow, refreshAll, peoplePicker, nameSuggest, peopleCount });
 })();
 
 // Първото рисуване — след като се заредят всички скриптове (coach, parent, landing)
