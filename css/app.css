@@ -1145,3 +1145,10 @@ button, a, input, select, textarea, label, [role="button"] { touch-action: manip
   .tl-kid .avatar, .tl-q { width: 36px; height: 36px; }
   .tl-st { left: 26px; }
 }
+
+/* ================= v57: присъствието се маха (↺) ================= */
+.att2 .att2-b.clr { width: 34px; font-size: 1.05rem; font-weight: 800; color: var(--muted); background: transparent; }
+.att2 .att2-b.clr:hover { color: var(--ink); background: var(--sky-50); }
+.att2[data-att=""] .att2-b.clr { display: none; }
+#attClr[hidden], #allIn[hidden] { display: none; }
+.sd-head > strong + .btn, .sd-head .btn + .btn { margin-left: 6px; }

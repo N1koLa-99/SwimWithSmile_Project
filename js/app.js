@@ -441,6 +441,7 @@
     <div class="att2 ${size}" data-att="${state === true ? '1' : state === false ? '0' : ''}" role="group" aria-label="Присъствие">
       <button type="button" class="att2-b yes" data-v="1" aria-pressed="${state === true}" title="Присъства">${I.check}</button>
       <button type="button" class="att2-b no" data-v="0" aria-pressed="${state === false}" title="Отсъства">${I.x}</button>
+      <button type="button" class="att2-b clr" data-v="" title="Махни отметката">↺</button>
     </div>`;
   const paintAtt = (box, v) => {
     box.dataset.att = v;
@@ -1605,7 +1606,8 @@
       <section class="sd-sec">
         <div class="sd-head">
           <strong><span class="sd-n">1</span>Кой дойде <span class="badge" id="sdSum"></span></strong>
-          ${parts.some(p => p.attended === null) ? `<button class="btn btn-primary btn-sm" id="allIn">${I.check} Всички са тук</button>` : ''}
+          ${parts.length ? `<button class="btn btn-primary btn-sm" id="allIn" ${parts.some(p => p.attended === null) ? '' : 'hidden'}>${I.check} Всички са тук</button>
+            <button class="btn btn-ghost btn-sm" id="attClr" ${parts.some(p => p.attended !== null) ? '' : 'hidden'}>↺ Изчисти</button>` : ''}
         </div>
         <div class="klist" id="partList">${parts.length ? parts.map(p => kidRow(p, { details: true })).join('') : `<p class="subtle small" style="padding:6px 2px">Още няма плувци — добави отдолу.</p>`}</div>
         <div class="sd-addrow">
@@ -1728,9 +1730,25 @@
     if (allIn) allIn.onclick = async () => {
       const boxes = $$('[data-att]', list).filter(b => b.dataset.att === '');
       boxes.forEach(b => paintAtt(b, '1')); sum(); busy(allIn, true);
-      try { await API.markAttendance(id, boxes.map(b => ({ childId: b.closest('[data-cid]').dataset.cid, attended: true }))); dirty = true; allIn.remove(); toast('Отбелязано', 'ok');
-        boxes.forEach(b => { const p = parts.find(x => x.childId === b.closest('[data-cid]').dataset.cid); if (p) p.attended = true; }); paintTotals(); }
+      try { await API.markAttendance(id, boxes.map(b => ({ childId: b.closest('[data-cid]').dataset.cid, attended: true }))); dirty = true; busy(allIn, false); toast('Отбелязано', 'ok');
+        boxes.forEach(b => { const p = parts.find(x => x.childId === b.closest('[data-cid]').dataset.cid); if (p) p.attended = true; }); paintTotals(); syncAttBtns(); }
       catch (e) { boxes.forEach(b => paintAtt(b, '')); sum(); busy(allIn, false); err(e); }
+    };
+    // ↺ Изчисти — всички обратно на „неотбелязано"
+    const attClr = $('#attClr');
+    const syncAttBtns = () => {
+      const boxes = $$('[data-att]', list);
+      if (allIn) allIn.hidden = !boxes.some(b => b.dataset.att === '');
+      if (attClr) attClr.hidden = !boxes.some(b => b.dataset.att !== '');
+    };
+    list.addEventListener('attchange', syncAttBtns);
+    if (attClr) attClr.onclick = async () => {
+      const boxes = $$('[data-att]', list).filter(b => b.dataset.att !== '');
+      const prev = boxes.map(b => b.dataset.att);
+      boxes.forEach(b => paintAtt(b, '')); sum(); syncAttBtns();
+      try { await API.markAttendance(id, boxes.map(b => ({ childId: b.closest('[data-cid]').dataset.cid, attended: null }))); dirty = true;
+        boxes.forEach(b => { const p = parts.find(x => x.childId === b.closest('[data-cid]').dataset.cid); if (p) p.attended = null; }); paintTotals(); }
+      catch (e) { boxes.forEach((b, i) => paintAtt(b, prev[i])); sum(); syncAttBtns(); err(e); }
     };
     const addName = $('#addName');
     nameSuggest(addName, $('#addNameBox'), () => addable, async (x) => {
@@ -1844,7 +1862,7 @@
       footer: `<button class="btn btn-ghost" id="pn_back">${I.chevL} Назад</button><button class="btn btn-primary" id="pn_save">${I.check} Запази</button>` });
     const box = $('#modal-host [data-att]');
     let att = p.attended;
-    $$('.att2-b', box).forEach(b => b.onclick = () => { const v = box.dataset.att === b.dataset.v ? '' : b.dataset.v; paintAtt(box, v); att = v === '' ? null : v === '1'; });
+    $$('.att2-b', box).forEach(b => b.onclick = () => { const v = b.dataset.v === '' || box.dataset.att === b.dataset.v ? '' : b.dataset.v; paintAtt(box, v); att = v === '' ? null : v === '1'; });
     let mood = p.mood || null;
     $$('#pn_mood button').forEach(b => b.onclick = () => { mood = mood === b.dataset.m ? null : b.dataset.m; $$('#pn_mood button').forEach(x => x.classList.toggle('on', x.dataset.m === mood)); });
     $$('.qchips button').forEach(b => b.onclick = () => { const ta = $('#' + b.parentElement.dataset.for); ta.value = (ta.value.trim() ? ta.value.trim() + ', ' : '') + b.textContent; ta.focus(); });
