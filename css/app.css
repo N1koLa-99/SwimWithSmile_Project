@@ -1060,3 +1060,34 @@ details.more[open] { padding-bottom: 6px; }
 .kp-foot .sd-saved { margin-left: auto; }
 .moodpick-sm button { width: 38px; height: 38px; font-size: 1.15rem; }
 .sd-tip { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--sky-50); }
+
+/* ================= v55: тренировката се пише на ръка ================= */
+.wb2 { min-width: 0; max-width: 100%; }
+.wb2 label .subtle { font-weight: 500; }
+.wb2-ta { display: block; width: 100%; max-width: 100%; box-sizing: border-box; min-height: 96px; resize: none; overflow: auto;
+  font-size: 16px; line-height: 1.5; padding: 12px 14px; background: #fff; }
+.wb2-ex { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.wb2-ex button { max-width: 100%; height: 30px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--sky-100); background: #fff;
+  font-size: .8rem; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb2-ex button:active { background: var(--sky-50); }
+.wb2-out:empty { display: none; }
+.wb2-out { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: var(--sky-50); min-width: 0; }
+.wb2-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wb2-lines li { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: .9rem; }
+.wb2-lines li b { flex: 0 0 auto; min-width: 58px; font-family: var(--font-head); color: var(--navy); }
+.wb2-lines li span { flex: 1; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.wb2-lines li.no b { color: var(--muted); }
+.wb2-lines li i { color: var(--muted); font-style: normal; font-size: .8rem; }
+.wb2-sum { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--sky-100); font-size: .95rem; color: var(--ink-2); }
+.wb2-sum b { color: var(--navy); }
+.kpanel .wb2 { margin: 0; padding: 10px; border-radius: 14px; background: #fff; }
+.kpanel { min-width: 0; overflow: hidden; }
+.sd-sec .wb2 { margin-top: 0; }
+#modal-host .modal-body { overflow-x: hidden; }
+/* нищо не излиза надясно: редовете в списъка се свиват, дългият текст се реже */
+.klist { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.klist > *, .krow, .kpanel { min-width: 0; max-width: 100%; }
+.krow-main, .krow-name, .krow-sets, .krow-meta { min-width: 0; }
+.krow-sets { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.krow-meta { flex-wrap: wrap; }
+.sd-sec, .sd-hero { min-width: 0; max-width: 100%; }

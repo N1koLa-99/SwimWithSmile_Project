@@ -767,22 +767,60 @@ function poolOk_(v) {
   return Math.round(n * 10) / 10;
 }
 // Връща { lengths, meters (направо в метри, напр. 4x50м), bad: [неразчетени] }
+// ===== Разчитане на тренировка, написана на ръка (общо за сървъра и сайта) =====
+// Всеки ред е серия: „200 крака кроул", „2 x 200 гръб" (=400 м), „два пъти по двеста", „4 по 50 ръце",
+// „6 дължини кроул", „кроул 100". Под 25 без мярка = дължини на басейна; 25 и повече = метри.
+// Ред без число („загрявка") е просто бележка — 0 м, не е грешка.
+var SWIM_NUMW = { 'един': 1, 'една': 1, 'едно': 1, 'два': 2, 'две': 2, 'три': 3, 'четири': 4, 'пет': 5, 'шест': 6, 'седем': 7, 'осем': 8, 'девет': 9, 'десет': 10,
+  'единадесет': 11, 'единайсет': 11, 'дванадесет': 12, 'дванайсет': 12, 'тринадесет': 13, 'тринайсет': 13, 'четиринадесет': 14, 'четиринайсет': 14,
+  'петнадесет': 15, 'петнайсет': 15, 'шестнадесет': 16, 'шестнайсет': 16, 'седемнадесет': 17, 'седемнайсет': 17, 'осемнадесет': 18, 'осемнайсет': 18,
+  'деветнадесет': 19, 'деветнайсет': 19, 'двадесет': 20, 'двайсет': 20, 'тридесет': 30, 'трийсет': 30, 'четиридесет': 40, 'четирийсет': 40,
+  'петдесет': 50, 'шестдесет': 60, 'седемдесет': 70, 'осемдесет': 80, 'деветдесет': 90, 'сто': 100, 'двеста': 200, 'триста': 300,
+  'четиристотин': 400, 'петстотин': 500, 'шестстотин': 600, 'седемстотин': 700, 'осемстотин': 800, 'деветстотин': 900, 'хиляда': 1000, 'половин': 0.5 };
+function swimWordsToDigits(line) {
+  var t = String(line).toLowerCase().split(/(\s+)/), out = [], i = 0;
+  while (i < t.length) {
+    var w = t[i].replace(/[.,]$/, '');
+    if (SWIM_NUMW[w] !== undefined && w !== 'половин') {
+      var acc = SWIM_NUMW[w], j = i + 1;
+      for (;;) {                         // „сто и петдесет", „двайсет и пет", „двеста петдесет"
+        var k = j; while (k < t.length && /^\s+$/.test(t[k])) k++;
+        var nx = (t[k] || '').replace(/[.,]$/, '');
+        if (nx === 'и') { var k2 = k + 1; while (k2 < t.length && /^\s+$/.test(t[k2])) k2++; var n2 = (t[k2] || '').replace(/[.,]$/, '');
+          if (SWIM_NUMW[n2] !== undefined && SWIM_NUMW[n2] < acc && n2 !== 'половин') { acc += SWIM_NUMW[n2]; j = k2 + 1; continue; } break; }
+        if (SWIM_NUMW[nx] !== undefined && SWIM_NUMW[nx] < acc && acc >= 20 && nx !== 'половин') { acc += SWIM_NUMW[nx]; j = k + 1; continue; }
+        break;
+      }
+      out.push(String(acc)); i = j;
+    } else { out.push(t[i]); i++; }
+  }
+  return out.join('');
+}
+function swimLine(raw, pool) {
+  pool = pool || 25;
+  var line = swimWordsToDigits(raw).replace(/(^|\s)(хикс|икс)(?=\s|$)/g, '$1x').replace(/(\d)\s*[хx×*]\s*(\d)/g, '$1x$2');
+  // „2 пъти по 200", „2 пъти 200", „4 по 50", „2x200"
+  var m = line.match(/(\d+(?:[.,]\d+)?)\s*(?:x|пъти(?:\s*(?:по|x))?|път(?:\s*по)?|по)\s*(\d+(?:[.,]\d+)?)\s*(метра|метър|метри|м\.?|m|дължини|дължина|дълж\.?|д\.)?(?![a-zа-я0-9])/i);
+  var reps = 1, dist, unit, used;
+  if (m) { reps = parseFloat(m[1].replace(',', '.')); dist = parseFloat(m[2].replace(',', '.')); unit = m[3]; used = m[0]; }
+  else {
+    m = line.match(/(\d+(?:[.,]\d+)?)\s*(метра|метър|метри|м\.?|m|дължини|дължина|дълж\.?|д\.)?(?![a-zа-я0-9])/i);
+    if (!m) return { m: 0, what: String(raw).trim(), ok: false };
+    dist = parseFloat(m[1].replace(',', '.')); unit = m[2]; used = m[0];
+  }
+  var lengths = unit ? /^д/i.test(unit) : dist < 25;
+  var meters = Math.round(reps * dist * (lengths ? pool : 1));
+  if (!(meters > 0) || meters > 20000) return { m: 0, what: String(raw).trim(), ok: false };
+  var what = line.replace(used, ' ').replace(/^\s*(по|пъти)\s+/, '').replace(/\s+/g, ' ').trim();
+  return { m: meters, what: what, ok: true, reps: reps, dist: dist, lengths: lengths };
+}
+function swimLines(txt, pool) {
+  return String(txt || '').split(/\n|;|,(?!\d)/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return swimLine(x, pool); });
+}
+
 function parseSets_(txt) {
-  // „200 крака кроул" = 200 метра · „4x6 кроул" = 4 пъти по 6 дължини · „6 дължини" = дължини
-  var out = { lengths: 0, meters: 0, bad: [] };
-  String(txt || '').split(/[,;+\n]+/).forEach(function (tok) {
-    var t = tok.trim().toLowerCase();
-    if (!t) return;
-    var m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/);
-    if (m) {
-      var reps = Number(m[1]), n = Number(m[2]);
-      if (/^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '')) out.meters += reps * n; else out.lengths += reps * n;
-      return;
-    }
-    m = t.match(/^(\d{1,4})\s*(.*)$/);
-    if (!m) { out.bad.push(tok.trim()); return; }
-    if (/^дълж/i.test(m[2] || '')) out.lengths += Number(m[1]); else out.meters += Number(m[1]);
-  });
+  var out = { lengths: 0, meters: 0, bad: [] };          // никога не отказваме — ред без число е бележка
+  swimLines(txt, 1).forEach(function (l) { if (l.lengths) out.lengths += l.m; else out.meters += l.m; });
   return out;
 }
 function metersFor_(sets, pool) {
@@ -823,11 +861,8 @@ function kcalFor_(sets, pool, c) {
   if (!sets) return null;
   var kg = childKg_(c), adult = nb_((c || {}).isAdult) || (ageYears_((c || {}).birthDate) || 0) >= 18;
   var minPer100 = adult ? 2.5 : 3, kcal = 0;
-  String(sets).split(/[,;+\n]+/).forEach(function (tok) {
-    var t = tok.trim().toLowerCase(); if (!t) return;
-    var meters = metersFor_(t, pool) || 0;
-    var rest = t.replace(/^\d{1,3}\s*[x×х*]\s*\d{1,4}\s*/, '').replace(/^\d{1,4}\s*/, '');
-    kcal += swimMet_(rest) * kg * (meters / 100 * minPer100 / 60);
+  swimLines(sets, pool || DEFAULT_POOL).forEach(function (l) {
+    if (l.m) kcal += swimMet_(l.what) * kg * (l.m / 100 * minPer100 / 60);
   });
   return kcal > 0 ? Math.round(kcal) : null;
 }

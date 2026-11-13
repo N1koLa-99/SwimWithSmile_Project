@@ -376,17 +376,60 @@
   const firstName = (n) => String(n || 'Треньор').split(' ')[0];
 
   /* ---------- Метри: „4x6, 5x8" дължини × басейна ---------- */
-  // „200 крака кроул" = 200 метра · „4x6 кроул" = 4 пъти по 6 дължини (старият запис) · „6 дължини" = дължини
+  // ===== Разчитане на тренировка, написана на ръка (общо за сървъра и сайта) =====
+  // Всеки ред е серия: „200 крака кроул", „2 x 200 гръб" (=400 м), „два пъти по двеста", „4 по 50 ръце",
+  // „6 дължини кроул", „кроул 100". Под 25 без мярка = дължини на басейна; 25 и повече = метри.
+  // Ред без число („загрявка") е просто бележка — 0 м, не е грешка.
+  var SWIM_NUMW = { 'един': 1, 'една': 1, 'едно': 1, 'два': 2, 'две': 2, 'три': 3, 'четири': 4, 'пет': 5, 'шест': 6, 'седем': 7, 'осем': 8, 'девет': 9, 'десет': 10,
+    'единадесет': 11, 'единайсет': 11, 'дванадесет': 12, 'дванайсет': 12, 'тринадесет': 13, 'тринайсет': 13, 'четиринадесет': 14, 'четиринайсет': 14,
+    'петнадесет': 15, 'петнайсет': 15, 'шестнадесет': 16, 'шестнайсет': 16, 'седемнадесет': 17, 'седемнайсет': 17, 'осемнадесет': 18, 'осемнайсет': 18,
+    'деветнадесет': 19, 'деветнайсет': 19, 'двадесет': 20, 'двайсет': 20, 'тридесет': 30, 'трийсет': 30, 'четиридесет': 40, 'четирийсет': 40,
+    'петдесет': 50, 'шестдесет': 60, 'седемдесет': 70, 'осемдесет': 80, 'деветдесет': 90, 'сто': 100, 'двеста': 200, 'триста': 300,
+    'четиристотин': 400, 'петстотин': 500, 'шестстотин': 600, 'седемстотин': 700, 'осемстотин': 800, 'деветстотин': 900, 'хиляда': 1000, 'половин': 0.5 };
+  function swimWordsToDigits(line) {
+    var t = String(line).toLowerCase().split(/(\s+)/), out = [], i = 0;
+    while (i < t.length) {
+      var w = t[i].replace(/[.,]$/, '');
+      if (SWIM_NUMW[w] !== undefined && w !== 'половин') {
+        var acc = SWIM_NUMW[w], j = i + 1;
+        for (;;) {                         // „сто и петдесет", „двайсет и пет", „двеста петдесет"
+          var k = j; while (k < t.length && /^\s+$/.test(t[k])) k++;
+          var nx = (t[k] || '').replace(/[.,]$/, '');
+          if (nx === 'и') { var k2 = k + 1; while (k2 < t.length && /^\s+$/.test(t[k2])) k2++; var n2 = (t[k2] || '').replace(/[.,]$/, '');
+            if (SWIM_NUMW[n2] !== undefined && SWIM_NUMW[n2] < acc && n2 !== 'половин') { acc += SWIM_NUMW[n2]; j = k2 + 1; continue; } break; }
+          if (SWIM_NUMW[nx] !== undefined && SWIM_NUMW[nx] < acc && acc >= 20 && nx !== 'половин') { acc += SWIM_NUMW[nx]; j = k + 1; continue; }
+          break;
+        }
+        out.push(String(acc)); i = j;
+      } else { out.push(t[i]); i++; }
+    }
+    return out.join('');
+  }
+  function swimLine(raw, pool) {
+    pool = pool || 25;
+    var line = swimWordsToDigits(raw).replace(/(^|\s)(хикс|икс)(?=\s|$)/g, '$1x').replace(/(\d)\s*[хx×*]\s*(\d)/g, '$1x$2');
+    // „2 пъти по 200", „2 пъти 200", „4 по 50", „2x200"
+    var m = line.match(/(\d+(?:[.,]\d+)?)\s*(?:x|пъти(?:\s*(?:по|x))?|път(?:\s*по)?|по)\s*(\d+(?:[.,]\d+)?)\s*(метра|метър|метри|м\.?|m|дължини|дължина|дълж\.?|д\.)?(?![a-zа-я0-9])/i);
+    var reps = 1, dist, unit, used;
+    if (m) { reps = parseFloat(m[1].replace(',', '.')); dist = parseFloat(m[2].replace(',', '.')); unit = m[3]; used = m[0]; }
+    else {
+      m = line.match(/(\d+(?:[.,]\d+)?)\s*(метра|метър|метри|м\.?|m|дължини|дължина|дълж\.?|д\.)?(?![a-zа-я0-9])/i);
+      if (!m) return { m: 0, what: String(raw).trim(), ok: false };
+      dist = parseFloat(m[1].replace(',', '.')); unit = m[2]; used = m[0];
+    }
+    var lengths = unit ? /^д/i.test(unit) : dist < 25;
+    var meters = Math.round(reps * dist * (lengths ? pool : 1));
+    if (!(meters > 0) || meters > 20000) return { m: 0, what: String(raw).trim(), ok: false };
+    var what = line.replace(used, ' ').replace(/^\s*(по|пъти)\s+/, '').replace(/\s+/g, ' ').trim();
+    return { m: meters, what: what, ok: true, reps: reps, dist: dist, lengths: lengths };
+  }
+  function swimLines(txt, pool) {
+    return String(txt || '').split(/\n|;|,(?!\d)/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return swimLine(x, pool); });
+  }
+
   function parseSets(txt) {
     const out = { lengths: 0, meters: 0, bad: [] };
-    String(txt || '').split(/[,;+\n]+/).forEach(tok => {
-      const t = tok.trim().toLowerCase(); if (!t) return;
-      let m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/);
-      if (m) { if (/^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || '')) out.meters += +m[1] * +m[2]; else out.lengths += +m[1] * +m[2]; return; }
-      m = t.match(/^(\d{1,4})\s*(.*)$/);
-      if (!m) { out.bad.push(tok.trim()); return; }
-      if (/^дълж/i.test(m[2] || '')) out.lengths += +m[1]; else out.meters += +m[1];
-    });
+    swimLines(txt, 1).forEach(l => { if (l.lengths) out.lengths += l.m; else out.meters += l.m; });
     return out;
   }
   const metersOf = (sets, pool) => { if (!sets) return null; const r = parseSets(sets); const v = Math.round(r.lengths * (pool || 25) + r.meters); return v > 0 ? v : null; };
@@ -498,7 +541,7 @@
 
   // най-честите серии в тренировката (за общото поле „Какво плуваха")
   const commonSets = (parts) => { const c = {}; parts.forEach(p => { if (p.sets) c[p.sets] = (c[p.sets] || 0) + 1; }); return Object.keys(c).sort((a, b) => c[b] - c[a])[0] || ''; };
-  const prettySets = (t) => String(t || '').replace(/(^|,\s*)(\d{1,4})м(?=\s|,|$)/g, '$1$2 м').replace(/(\d)\s*[xх*]\s*(\d)/gi, '$1×$2').replace(/\s*,\s*/g, ' · ');
+  const prettySets = (t) => setsToText(t).split('\n').join(' · ');
   /* ---------- Ред за плувец в тренировка ---------- */
   function kidRow(p, opts = {}) {
     const alert = p.medicalAlert ? `<button type="button" class="kid-alert" data-alert="${esc(p.medicalAlert)}" title="${esc(p.medicalAlert)}" aria-label="Здравно предупреждение">${I.alert}</button>` : '';
@@ -1660,145 +1703,53 @@
     try { await API.deleteSession(s.id); toast('Изтрито', 'ok'); refreshCal(); after(); } catch (e) { err(e); }
   }
 
-  /* ---------- Конструктор на тренировката ----------
-     Всяка серия: „2 × 2 дължини" + свободно „какво" („крака кроул", „само крака, гребане с едната ръка").
-     Думите отдолу само помагат — може да се пише всичко. Пази се като текст „2x2 крака кроул, 4x1 кроул". */
-  const WORDS = ['крака', 'ръце', 'цяло', 'упражнение', 'кроул', 'гръб', 'бруст', 'делфин', 'с дъска', 'с плавници', 'дишане', 'свободно'];
+  /* ---------- Тренировката — пише се на ръка, по една серия на ред ----------
+     „200 крака кроул", „2 x 200 гръб", „два пъти по двеста", „4 по 50 ръце", „6 дължини кроул".
+     Под полето се вижда как е разчетено всеки ред + общо метри и калории. Време не показваме —
+     всяко дете плува със свое темпо. */
   const STYLE_MET = { 'делфин': 9.5, 'бруст': 5.3, 'гръб': 4.8, 'крака': 4.0, 'ръце': 4.5, 'упражн': 4.5, 'игри': 3.5, 'кроул': 5.8, '': 5.8 };
   const styleOf = (rest) => { const t = String(rest || '').toLowerCase(); return ['делфин', 'бруст', 'гръб', 'крака', 'ръце', 'упражн', 'игри', 'кроул'].find(k => t.includes(k.slice(0, 4))) || ''; };
   const kcalOf = (sets, pool, kg = 30, adult = false) => {
     let k = 0;
-    String(sets || '').split(/[,;+\n]+/).forEach(tok => {
-      const t = tok.trim().toLowerCase(); if (!t) return;
-      const meters = metersOf(t, pool) || 0;
-      const rest = t.replace(/^\d{1,3}\s*[x×х*]\s*\d{1,4}\s*/, '').replace(/^\d{1,4}\s*/, '');
-      k += (STYLE_MET[styleOf(rest)] || 5.8) * kg * (meters / 100 * (adult ? 2.5 : 3) / 60);
-    });
+    swimLines(sets, pool || 25).forEach(l => { if (l.m) k += (STYLE_MET[styleOf(l.what)] || 5.8) * kg * (l.m / 100 * (adult ? 2.5 : 3) / 60); });
     return Math.round(k);
   };
-  const minutesOf = (m, adult) => Math.round(m / 100 * (adult ? 2.5 : 3));
-  // Всяка серия е „метри + какво". Старите „4x6 кроул" се превръщат в метри по басейна.
-  const rowsFrom = (txt, pool = 25) => {
-    const rows = [];
-    for (const tok of String(txt || '').split(/[,;+\n]+/)) {
-      const t = tok.trim(); if (!t) continue;
-      let m = t.match(/^(\d{1,3})\s*[x×х*]\s*(\d{1,4})\s*(.*)$/i);
-      if (m) { const inM = /^(м|m|метра|метр)(?![a-zа-я])/i.test(m[3] || ''); rows.push({ m: +m[1] * +m[2] * (inM ? 1 : pool), txt: (m[3] || '').replace(/^(метра|метр|м|m)(?![a-zа-я])/i, '').trim() }); continue; }
-      m = t.match(/^(\d{1,4})\s*(.*)$/);
-      if (!m) return null;
-      if (/^дълж/i.test(m[2] || '')) { rows.push({ m: +m[1] * pool, txt: m[2].replace(/^дължин[аи]?/i, '').trim() }); continue; }
-      rows.push({ m: +m[1], txt: (m[2] || '').replace(/^(метра|метр|м|m)(?![a-zа-я])/i, '').trim() });
-    }
-    return rows;
-  };
-  const cleanTxt = (t) => String(t || '').replace(/[,;+\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
-  const rowsText = (rows) => rows.filter(x => x.m > 0).map(x => `${x.m}м${cleanTxt(x.txt) ? ' ' + cleanTxt(x.txt) : ''}`).join(', ');
+  // старите записи са със запетаи — в полето ги показваме ред по ред
+  const setsToText = (v) => String(v || '').split(/\n|;|,(?!\d)/).map(x => x.trim()).filter(Boolean).join('\n');
+  const SWIM_EXAMPLES = ['200 крака кроул', '2 x 100 гръб', '4 по 50 ръце кроул', '100 кроул'];
 
-  // who: { kg, adult } — за калориите (на конкретно дете) или null = „дете ~30 кг"
   function setsField(id, value, pool, who) {
-    return `<div class="field wb" id="${id}_wb" data-pool="${pool || 25}">
-      <div class="wb-h"><label>Какво плува</label><button type="button" class="wb-mode" data-mode>Като текст</button></div>
+    return `<div class="field wb2" id="${id}_wb">
+      <label for="${id}_ta">Какво плува <span class="subtle">— по една серия на ред</span></label>
       <input type="hidden" id="${id}" value="${esc(value || '')}">
-      <div class="wb-rows"></div>
-      <div class="wb-text" hidden><textarea class="textarea" rows="4" placeholder="200 крака кроул&#10;200 крака гръб&#10;50 ръце кроул"></textarea>
-        <span class="hint">Всеки ред: метри и какво — „200 крака кроул"</span></div>
-      <div class="wb-add">
-        <button type="button" class="btn btn-soft btn-sm" data-add>${I.plus} Серия</button>
-        ${['200 крака кроул', '200 крака гръб', '50 крака кроул', '50 крака гръб', '100 кроул'].map(x => `<button type="button" class="chip-btn" data-q="${x}">${x}</button>`).join('')}
-      </div>
-      <div class="wb-sum" id="${id}_out"></div>
-      <span class="hint">Басейн ${pool || 25} м${who ? '' : ' · калориите са за дете ~30 кг'}</span>
+      <textarea class="textarea wb2-ta" id="${id}_ta" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"
+        placeholder="200 крака кроул&#10;2 x 100 гръб&#10;4 по 50 ръце кроул">${esc(setsToText(value))}</textarea>
+      <div class="wb2-ex">${SWIM_EXAMPLES.map(x => `<button type="button" data-q="${x}">+ ${x}</button>`).join('')}</div>
+      <div class="wb2-out" id="${id}_out"></div>
+      <span class="hint">Басейн ${pool || 25} м · под 25 без „м" = дължини${who ? '' : ' · калориите са за дете ~30 кг'}</span>
     </div>`;
   }
   function bindSetsField(id, pool, who) {
-    const box = $('#' + id + '_wb'), hid = $('#' + id), out = $('#' + id + '_out');
-    const rowsBox = $('.wb-rows', box), textBox = $('.wb-text', box), txt = $('textarea', textBox), modeBtn = $('[data-mode]', box);
+    const box = $('#' + id + '_wb'), hid = $('#' + id), ta = $('#' + id + '_ta'), out = $('#' + id + '_out');
     pool = pool || 25;
     const kg = who?.kg || 30, adult = !!who?.adult;
-    let rows = rowsFrom(hid.value, pool);
-    let textMode = rows === null;
-    if (!rows) rows = [];
-    let act = rows.length - 1;                                   // серията, на която са думите отдолу
-    const paintSum = () => {
-      const v = hid.value.trim();
-      if (!v) { out.innerHTML = ''; return; }
-      const r = parseSets(v);
-      if (r.bad.length) { out.innerHTML = `<span class="txt-red">Не разбирам „${esc(r.bad[0])}" — започни с метрите: 200 крака кроул</span>`; return; }
-      const m = Math.round(r.lengths * pool + r.meters);
-      out.innerHTML = `<span class="wb-big">🏊 <b>${fmtM(m)}</b></span><span>🔥 ≈ <b>${kcalOf(v, pool, kg, adult)}</b> kcal</span><span>⏱ ≈ ${minutesOf(m, adult)} мин</span>`;
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(320, Math.max(96, ta.scrollHeight + 2)) + 'px'; };
+    const paint = () => {
+      const lines = swimLines(ta.value, pool);
+      if (!lines.length) { out.innerHTML = ''; return; }
+      const total = lines.reduce((a, l) => a + l.m, 0);
+      out.innerHTML = `<ul class="wb2-lines">${lines.map(l => `<li class="${l.ok ? '' : 'no'}"><b>${l.ok ? fmtM(l.m) : '—'}</b><span>${esc(l.what || (l.ok ? '' : ''))}${l.ok ? '' : ' <i>без метри</i>'}</span></li>`).join('')}</ul>
+        ${total ? `<div class="wb2-sum"><span>🏊 <b>${fmtM(total)}</b></span><span>🔥 ≈ <b>${kcalOf(ta.value, pool, kg, adult)}</b> kcal</span></div>` : ''}`;
     };
-    const sync = () => { hid.value = textMode ? txt.value.split('\n').map(x => x.trim()).filter(Boolean).join(', ') : rowsText(rows); paintSum(); hid.dispatchEvent(new Event('input')); };
-    const lenOf = (x) => { const l = x.m / pool; return Number.isInteger(l) ? `${l} ${l === 1 ? 'дължина' : 'дължини'}` : ''; };
-    const has = (t, w) => (' ' + String(t || '').toLowerCase() + ' ').includes(' ' + w + ' ');
-    const rowHtml = (x, i) => `<div class="wb-row ${i === act ? 'is-act' : ''}" data-i="${i}">
-        <div class="wb-line">
-          <div class="wb-num wb-num-m"><button type="button" data-d="-1" aria-label="по-малко">−</button><input type="number" inputmode="numeric" min="5" max="5000" step="25" value="${x.m}" data-f="m" aria-label="Метри"><button type="button" data-d="1" aria-label="повече">+</button></div>
-          <span class="wb-mu">м</span>
-          <input class="input wb-what" data-f="txt" value="${esc(x.txt || '')}" placeholder="какво — крака кроул…" autocomplete="off" enterkeyhint="done">
-          <button type="button" class="wb-del" data-del aria-label="Махни серията">${I.x}</button>
-        </div>
-        ${i === act ? `<div class="wb-words">${WORDS.map(w => `<button type="button" class="${has(x.txt, w) ? 'on' : ''}" data-w="${w}">${w}</button>`).join('')}
-          <span class="wb-len">${lenOf(x)}</span></div>` : ''}
-      </div>`;
-    const paintRows = () => {
-      rowsBox.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="wb-empty">Натисни „+ Серия" или избери готова отдолу.</p>';
-    };
-    const paintMode = () => {
-      rowsBox.hidden = textMode; textBox.hidden = !textMode;
-      $('[data-add]', box).hidden = textMode;
-      modeBtn.textContent = textMode ? 'С бутони' : 'Като текст';
-      if (textMode) txt.value = hid.value.split(/\s*,\s*/).filter(Boolean).join('\n'); else paintRows();
-    };
-    const setAct = (i) => { if (i === act) return; act = i; paintRows(); };
-    rowsBox.addEventListener('focusin', (e) => { const row = e.target.closest('.wb-row'); if (row && e.target.matches('.wb-what')) { const i = +row.dataset.i; if (i !== act) { act = i; paintRows(); const inp = $(`.wb-row[data-i="${i}"] .wb-what`, rowsBox); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } } });
-    rowsBox.addEventListener('click', (e) => {
-      const row = e.target.closest('.wb-row'); if (!row) return;
-      const i = +row.dataset.i, x = rows[i];
-      const db = e.target.closest('[data-d]'), w = e.target.closest('[data-w]');
-      if (db) {                                            // ± по една дължина на басейна (до 100 м), после по 50
-        const d = +db.dataset.d, st = x.m < 100 || (x.m === 100 && d < 0) ? pool : 50;
-        x.m = Math.max(st, Math.min(5000, Math.round((x.m + d * st) / st) * st));
-        $('input[data-f="m"]', row).value = x.m; const ln = $('.wb-len', row); if (ln) ln.textContent = lenOf(x);
-        if (i !== act) setAct(i);
-        return sync();
-      }
-      if (w) {                                             // дума: вкл./изкл. в „какво"
-        const word = w.dataset.w;
-        x.txt = has(x.txt, word) ? (' ' + x.txt + ' ').replace(new RegExp(' ' + word + ' ', 'i'), ' ').trim() : ((x.txt || '').trim() + ' ' + word).trim();
-        $('.wb-what', row).value = x.txt; w.classList.toggle('on', has(x.txt, word));
-        return sync();
-      }
-      if (e.target.closest('[data-del]')) { rows.splice(i, 1); act = Math.min(act, rows.length - 1); }
-      else if (!e.target.closest('input')) { setAct(i); return; }
-      else return;
-      paintRows(); sync();
-    });
-    rowsBox.addEventListener('input', (e) => {
-      const row = e.target.closest('.wb-row'); if (!row) return;
-      const x = rows[+row.dataset.i], f = e.target.dataset.f;
-      if (f === 'txt') { x.txt = e.target.value; $$('.wb-words [data-w]', row).forEach(b => b.classList.toggle('on', has(x.txt, b.dataset.w))); }
-      else { const v = parseInt(e.target.value, 10); if (v > 0) x.m = Math.min(5000, v); const ln = $('.wb-len', row); if (ln) ln.textContent = lenOf(x); }
-      sync();
-    });
-    rowsBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.wb-what')) { e.preventDefault(); e.target.blur(); } });
-    txt.addEventListener('input', sync);
-    $('[data-add]', box).onclick = () => {
-      const last = rows[rows.length - 1];
-      rows.push(last ? { m: last.m, txt: '' } : { m: 50, txt: '' });
-      act = rows.length - 1; paintRows(); sync();
-      $(`.wb-row[data-i="${act}"] .wb-what`, rowsBox)?.focus();
-    };
+    const sync = () => { hid.value = ta.value.split('\n').map(x => x.trim()).filter(Boolean).join('\n'); paint(); grow(); hid.dispatchEvent(new Event('input')); };
+    ta.addEventListener('input', sync);
     $$('[data-q]', box).forEach(b => b.onclick = () => {
-      if (textMode) { txt.value = (txt.value.trim() ? txt.value.trim() + '\n' : '') + b.dataset.q; }
-      else { rows.push(...rowsFrom(b.dataset.q, pool)); act = rows.length - 1; paintRows(); }
-      sync();
+      ta.value = (ta.value.replace(/\s+$/, '') ? ta.value.replace(/\s+$/, '') + '\n' : '') + b.dataset.q;
+      sync(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
     });
-    modeBtn.onclick = () => {
-      if (textMode) { const r = rowsFrom(hid.value, pool); if (r === null) return toast('Всеки ред трябва да започва с метрите — напр. 200 крака кроул', 'err'); rows = r; act = rows.length - 1; }
-      textMode = !textMode; paintMode(); sync();
-    };
-    paintMode(); paintSum();
+    paint(); grow();
   }
+
   // Еднакви серии за всички присъстващи
   function setsForAll(s, parts, after) {
     const who = parts.filter(p => p.attended !== false);
@@ -1811,7 +1762,7 @@
     $('#sa_ok').onclick = async (ev) => {
       const v = $('#sa_sets').value.trim();
       if (!v) return toast('Напиши серии, напр. 4x6, 5x8', 'err');
-      if (parseSets(v).bad.length) return toast('Пиши така: 4x6, 5x8', 'err');
+      if (parseSets(v).bad.length) return toast('Не разбирам серията', 'err');
       busy(ev.currentTarget, true, 'Запис…');
       try { await API.updateSets(s.id, who.map(p => ({ childId: p.childId, sets: v }))); toast('Записано', 'ok'); after(); sessionDetail(s.id, after); }
       catch (e) { busy(ev.currentTarget, false); err(e); }
