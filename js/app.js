@@ -571,8 +571,9 @@
   route(/^\/app\/today$/, async () => {
     if (!guard()) return;
     const u = API.getUser() || {};
-    const h = new Date().getHours();
-    const hello = h < 11 ? 'Добро утро' : h < 18 ? 'Добър ден' : 'Добър вечер';
+    // до 10:00 — утро, до 17:00 — ден, след това — вечер
+    const nowD = new Date(), mins = nowD.getHours() * 60 + nowD.getMinutes();
+    const hello = mins < 600 ? 'Добро утро' : mins < 1020 ? 'Добър ден' : 'Добър вечер';
     shell('today', `
       <div class="page-head today-head">
         <div><div class="page-eyebrow">${esc(fmtDay(new Date()))}</div><h1 class="pagettl">${hello}, ${esc(firstName(u.name))}</h1></div>
@@ -606,18 +607,76 @@
     cal.forEach(ev => _gcalById[ev.key] = ev);
     const offs = cal.filter(ev => ev.kind === 'off');
     const gev = cal.filter(ev => ev.kind !== 'off' && !ev.allDay);
-    const items = [...d.sessions.map(x => ({ t: x.startTime || '', s: x })), ...gev.map(x => ({ t: x.startTime || '', g: x }))]
-      .sort((a, b) => a.t.localeCompare(b.t));
+    const toMin = (t) => { const [h, m] = String(t || '0:0').split(':'); return +h * 60 + +m; };
+    const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
+    const items = [
+      ...d.sessions.map(x => ({ t: x.startTime || '', dur: x.durationMin || 45, s: x,
+        kids: (x.participants || []).map(p => ({ id: p.childId, name: p.firstName || firstName(p.childName), last: p.lastName || '', att: p.attended })) })),
+      ...gev.map(x => ({ t: x.startTime || '', dur: x.durationMin || 45, g: x,
+        kids: (x.children || []).map(c => ({ id: c.id, name: c.firstName || firstName(c.name), last: '', att: null })), unk: x.unknownNames || [] })),
+    ].sort((a, b) => a.t.localeCompare(b.t));
+    let nextMarked = false;
+    items.forEach(it => {
+      const st = toMin(it.t), en = st + it.dur;
+      it.state = it.s && it.s.status === 'cancelled' ? 'cancelled' : nowM >= en ? 'past' : nowM >= st ? 'now' : (!nextMarked ? (nextMarked = true, 'next') : 'later');
+      it.in = st - nowM;
+    });
+    const kidsCount = new Set(items.flatMap(it => it.kids.map(k => k.id))).size;
+    const nxt = items.find(it => it.state === 'now') || items.find(it => it.state === 'next');
+    const inTxt = (m) => m <= 0 ? 'сега' : m < 60 ? `след ${m} мин` : `след ${Math.floor(m / 60)} ч${m % 60 ? ' ' + (m % 60) + ' мин' : ''}`;
     const offHtml = offs.length ? `<div class="today-off">${offs.map(ev => `<span>🌴 <b>${esc(firstName(ev.coachName))}</b> — ${esc(ev.title)}</span>`).join('')}</div>` : '';
     if (!items.length) {
       host.innerHTML = offHtml + emptyState(I.sun, 'Днес няма тренировки', 'Нито в графика, нито в Google Calendar.',
         `<button class="btn btn-primary" id="emptyNew" style="margin-top:16px">${I.plus} Добави тренировка</button>`);
       $('#emptyNew').onclick = () => sessionForm(null, new Date());
-    } else {
-      host.innerHTML = offHtml + items.map(it => it.s ? todaySessionCard(it.s) : googleTodayCard(it.g)).join('');
-      d.sessions.forEach(s => bindTodayCard(s));
-      gev.forEach(ev => bindGoogleCard(ev));
+      drawSide(d); return;
     }
+    const kidBtn = (k, it) => `<button type="button" class="tl-kid ${k.att === true ? 'yes' : k.att === false ? 'no' : ''}" data-kid="${k.id}">
+        ${avatar(k.name, k.last)}<span>${esc(k.name)}</span>${k.att === true ? '<i class="tl-st">✓</i>' : k.att === false ? '<i class="tl-st">✗</i>' : ''}</button>`;
+    host.innerHTML = offHtml + `
+      <div class="tl-sum card">
+        <div><b>${items.length}</b><small>${items.length === 1 ? 'час' : 'часа'} днес</small></div>
+        <div><b>${kidsCount}</b><small>${kidsCount === 1 ? 'дете' : 'деца'}</small></div>
+        ${nxt ? `<div class="tl-next"><small>${nxt.state === 'now' ? 'Сега' : 'Следва'}</small><b>${fmtTime(nxt.t)} · ${esc(nxt.kids.map(k => k.name).concat(nxt.unk || []).join(', ') || (nxt.s && (nxt.s.groupName || nxt.s.title)) || (nxt.g && nxt.g.title) || 'тренировка')}</b>
+          <em>${inTxt(nxt.in)}</em></div>` : `<div class="tl-next"><small>За днес</small><b>Всички часове минаха</b></div>`}
+      </div>
+      <div class="tl">${items.map((it, i) => `
+        <section class="tl-item is-${it.state}" data-i="${i}">
+          <div class="tl-time"><b>${fmtTime(it.t)}</b><small>${it.dur} мин</small>${it.state === 'now' ? '<span class="tl-now">сега</span>' : ''}</div>
+          <div class="tl-body">
+            <div class="tl-kids">${it.kids.map(k => kidBtn(k, it)).join('')}
+              ${(it.unk || []).map(n => `<button type="button" class="tl-kid q" data-who><i class="tl-q">?</i><span>${esc(n)}</span></button>`).join('')}
+              ${!it.kids.length && !(it.unk || []).length ? `<button type="button" class="tl-kid empty" data-open>${I.plus}<span>Добави деца</span></button>` : ''}
+            </div>
+            <button type="button" class="tl-meta" data-open>
+              ${it.g ? '<span class="g-badge">Google</span>' : ''}
+              ${it.s && it.s.groupName ? `<span class="tl-grp" style="--gc:${it.s.groupColor || '#1F73E0'}">${esc(it.s.groupName)}</span>` : ''}
+              <span>${esc(firstName((it.s || it.g).coachName))}${it.s && it.s.location ? ' · ' + esc(it.s.location) : ''}${it.state === 'cancelled' ? ' · отменена' : ''}</span>
+              <span class="tl-open">Тренировката ${I.chevR}</span>
+            </button>
+          </div>
+        </section>`).join('')}</div>
+      <p class="hint" style="margin-top:10px">Натисни дете — отваря се неговата тренировка (присъствие, какво плува).</p>`;
+    // отваряне: тренировка от сайта — направо; от Google — тихо се записва и се отваря
+    const openItem = async (it, cid, btn) => {
+      if (it.s) return sessionDetail(it.s.id, drawToday, cid);
+      const ev = it.g;
+      if ((ev.unknownNames || []).length || !(ev.childIds || []).length) return gcalDetail(ev.key, drawToday);
+      if (btn) busy(btn, true, '');
+      try {
+        const r = await API.importCalendarEvents([{ key: ev.key, date: ev.date, startTime: ev.startTime, durationMin: ev.durationMin,
+          location: ev.location, title: ev.title, childIds: ev.childIds, childId: ev.childId }]);
+        API.clearCache && API.clearCache();
+        sessionDetail(r.items[0].sessionId, drawToday, cid);
+        drawToday();
+      } catch (e) { err(e); } finally { if (btn) busy(btn, false); }
+    };
+    $$('.tl-item', host).forEach(sec => {
+      const it = items[+sec.dataset.i];
+      $$('[data-kid]', sec).forEach(b => b.onclick = () => openItem(it, b.dataset.kid, b));
+      $$('[data-open]', sec).forEach(b => b.onclick = () => openItem(it, null, b));
+      $$('[data-who]', sec).forEach(b => b.onclick = () => gcalDetail(it.g.key, drawToday));
+    });
     drawSide(d);
   }
   function todaySessionCard(s) {
@@ -1494,7 +1553,7 @@
 
   /* ---------- Детайли на тренировка: присъствие с едно докосване ---------- */
   let _sdToken = 0;
-  async function sessionDetail(id, after) {
+  async function sessionDetail(id, after, openCid) {
     after = after || refreshAll;
     const tok = ++_sdToken;
     modal({ title: 'Тренировка', body: loading(3, 60), large: true });
@@ -1505,7 +1564,7 @@
     const draw = (s) => {
       if (tok !== _sdToken || !$('#modal-host .modal-body') || touched) return;
       shown = JSON.stringify(s);
-      drawSessionDetail(s, boot, id, after);
+      drawSessionDetail(s, boot, id, after, openCid);
       const mb = $('#modal-host .modal-body');
       ['click', 'input', 'focusin'].forEach(evn => mb.addEventListener(evn, () => { touched = true; }, { once: true }));
     };
@@ -1517,7 +1576,7 @@
     } catch (e) { if (!shown) { closeModal(); return err(e); } }
   }
 
-  function drawSessionDetail(s, boot, id, after) {
+  function drawSessionDetail(s, boot, id, after, openCid0) {
     const kids = boot.children || [], groups = boot.groups || [];
     const present = new Set((s.participants || []).map(p => p.childId));
     const addable = kids.filter(c => !present.has(c.id));
@@ -1605,6 +1664,7 @@
       $('#ksMore', panel).onclick = () => participantNotes(s, p, after);
       panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     };
+    if (openCid0 && parts.some(p => p.childId === openCid0)) setTimeout(() => openKid(openCid0), 30);
     $$('[data-more]', list).forEach(b => {
       b.onclick = () => openKid(b.closest('[data-cid]').dataset.cid);
       b.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } };
