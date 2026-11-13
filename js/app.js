@@ -877,9 +877,9 @@
       try { await API.read('calendarEvents', { year: calState.y, month: calState.m + 1, fresh: true }); } catch {}
       b.classList.remove('spinning'); API.clearCache(); drawCalendar();
     };
-    $('#prevM').onclick = () => { calState.m--; if (calState.m<0){calState.m=11;calState.y--;} drawCalendar(); };
-    $('#nextM').onclick = () => { calState.m++; if (calState.m>11){calState.m=0;calState.y++;} drawCalendar(); };
-    $('#todayBtn').onclick = () => { calState.y=now.getFullYear(); calState.m=now.getMonth(); drawCalendar(); };
+    $('#prevM').onclick = () => { MZ.dir(-1); calState.m--; if (calState.m<0){calState.m=11;calState.y--;} drawCalendar(); };
+    $('#nextM').onclick = () => { MZ.dir(1); calState.m++; if (calState.m>11){calState.m=0;calState.y++;} drawCalendar(); };
+    $('#todayBtn').onclick = () => { const d = (now.getFullYear() - calState.y) * 12 + now.getMonth() - calState.m; if (d) MZ.dir(Math.sign(d)); calState.y=now.getFullYear(); calState.m=now.getMonth(); drawCalendar(); };
     const paintSeg = () => { $$('.seg-mini button').forEach(b => b.classList.toggle('on', b.dataset.v === calState.view)); $('#mz').hidden = calState.view !== 'month'; };
     $$('#mz button').forEach(b => b.onclick = () => MZ.step(b.dataset.z));
     $$('.seg-mini button').forEach(b => b.onclick = () => { calState.view = b.dataset.v; try { localStorage.setItem('sws.calView', b.dataset.v); } catch {} paintSeg(); drawCalendar(); });
@@ -1090,7 +1090,7 @@
     function apply(v) {
       rh = clamp(v);
       if (!grid) return;
-      const cw = grid.clientWidth / 7;
+      const cw = grid.clientWidth * 1.25 / 7.5;                  // делничните колони са по-широки (уикендът е тесен)
       const two = cw < 74 && rh >= 150;                           // тясна колона и увеличено → час отгоре, име отдолу
       const wrap = rh >= (two ? 220 : 170);                       // още по-увеличено → името на 2 реда
       const narrow = cw < 74 && !two;                             // телефон: името на 2 реда, за да се чете
@@ -1170,18 +1170,28 @@
     let swipeDir = 0;
     function attach(el, w, onSwipe) {
       sc = el; grid = el.firstElementChild; weeks = w; lastFit = -1; lastTwo = null; lastWrap = null;
-      if (swipeDir) { grid.classList.add(swipeDir > 0 ? 'slide-l' : 'slide-r'); swipeDir = 0; }
-      // плъзгане наляво/надясно = следващ/предишен месец (като в Google Calendar)
+      if (swipeDir) { grid.classList.add(swipeDir > 0 ? 'slide-l' : 'slide-r'); swipeDir = 0; }   // новият месец влиза от другата страна
+      // плъзгане наляво/надясно = следващ/предишен месец: месецът върви с пръста, после плавно излиза
       let sw = null;
-      el.addEventListener('touchstart', (e) => { sw = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null; }, { passive: true });
-      el.addEventListener('touchend', (e) => {
+      const setX = (x, anim) => { grid.style.transition = anim ? 'transform .2s cubic-bezier(.2,.8,.2,1), opacity .2s' : 'none'; grid.style.transform = x ? `translateX(${x}px)` : ''; grid.style.opacity = x ? String(Math.max(.35, 1 - Math.abs(x) / (el.clientWidth * 1.4))) : ''; };
+      el.addEventListener('touchstart', (e) => { sw = e.touches.length === 1 && !pinch ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), lock: null } : null; }, { passive: true });
+      el.addEventListener('touchmove', (e) => {
+        if (!sw || pinch || e.touches.length !== 1 || !onSwipe) return;
+        const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
+        if (sw.lock === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) sw.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+        if (sw.lock !== 'x') return;
+        e.preventDefault(); sw.dx = dx; setX(dx, false);
+      }, { passive: false });
+      el.addEventListener('touchend', () => {
         if (!sw || pinch || !onSwipe) { sw = null; return; }
-        const p0 = e.changedTouches[0], dx = p0.clientX - sw.x, dy = p0.clientY - sw.y;
-        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6 && Date.now() - sw.t < 700) { quietUntil = Date.now() + 350; swipeDir = dx < 0 ? 1 : -1; onSwipe(swipeDir); }
+        const dx = sw.dx || 0, fast = Date.now() - sw.t < 300 && Math.abs(dx) > 30;
+        if (sw.lock === 'x' && (Math.abs(dx) > el.clientWidth * .22 || fast)) {
+          const dir = dx < 0 ? 1 : -1; quietUntil = Date.now() + 400;
+          setX(-dir * el.clientWidth, true);
+          setTimeout(() => { swipeDir = dir; onSwipe(dir, true); }, 170);
+        } else if (sw.lock === 'x') { quietUntil = Date.now() + 250; setX(0, true); }
         sw = null;
       });
-      fitHeight();
-      if (!rh) rh = defRh();
       apply(fitNow() ? fitRh() : rh);
       // след като страницата се подреди — точната височина до долното меню
       requestAnimationFrame(() => { if (sc !== el) return; const h0 = el.style.height; fitHeight(); if (el.style.height !== h0) { lastFit = -1; apply(fitNow() ? fitRh() : rh); } });
@@ -1216,7 +1226,7 @@
       else if (e.key === '-' || e.key === '_') { e.preventDefault(); step('out'); }
       else if (e.key === '0') { e.preventDefault(); tweenTo(defRh()); }
     });
-    return { attach, step, busy: () => Date.now() < quietUntil || !!pinch };
+    return { attach, step, dir: (d) => { swipeDir = d; }, busy: () => Date.now() < quietUntil || !!pinch };
   })();
   // Малкият календар вляво: месецът, днес, дни с тренировки; клик = денят
   function paintMini(byDay, byDayCal, cc) {

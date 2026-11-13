@@ -1158,3 +1158,25 @@ button, a, input, select, textarea, label, [role="button"] { touch-action: manip
 .mzg.mz-narrow .cal-ev.bar { padding: 0 3px; letter-spacing: -.02em; }
 .mzg.mz-narrow .wk-ev .cal-more { font-size: 10px; padding: 0 3px; }
 .wk-ev .cal-more { line-height: 15px; height: 15px; padding-top: 0; padding-bottom: 0; }
+
+/* ================= v59: тесен, щрихован уикенд · плавна смяна на месеца · отстояние отстрани ================= */
+.mzg { --cols: repeat(5, minmax(0, 1.25fr)) repeat(2, minmax(0, .625fr)); }
+.mzg .mz-dow, .mzg .wk-bg, .mzg .wk-ev { grid-template-columns: var(--cols); }
+.wk-bg > .cal-cell.weekend {
+  background: repeating-linear-gradient(135deg, #F6F8FC 0 6px, #EEF2F9 6px 7px);
+}
+.wk-bg > .cal-cell.weekend:hover { background: repeating-linear-gradient(135deg, #F1F5FC 0 6px, #E8EEF8 6px 7px); }
+.wk-bg > .cal-cell.weekend .cal-daynum { color: #8A9AB5; }
+.wk-bg > .cal-cell.weekend.today .cal-daynum { color: #fff; }
+.mz-dow .cal-dow.weekend { font-size: .66rem; }
+@keyframes mzInL { from { transform: translateX(42%); opacity: .2; } to { transform: none; opacity: 1; } }
+@keyframes mzInR { from { transform: translateX(-42%); opacity: .2; } to { transform: none; opacity: 1; } }
+.mzg.slide-l .wk, .mzg.slide-l .mz-dow { animation: mzInL .28s cubic-bezier(.2, .8, .2, 1); }
+.mzg.slide-r .wk, .mzg.slide-r .mz-dow { animation: mzInR .28s cubic-bezier(.2, .8, .2, 1); }
+.cal-scroll { overflow-x: hidden; }
+.mzg { will-change: transform; }
+@media (max-width: 699px) {
+  .calx-main .cal-scroll { margin: 0 5px; border: 1px solid var(--sky-100); border-radius: 12px; }
+  .calx-main .cal-head { padding-left: 8px; padding-right: 8px; }
+}
+.cal-scroll, .calx-main .cal-head { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
