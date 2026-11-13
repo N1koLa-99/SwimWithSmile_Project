@@ -1094,9 +1094,10 @@
       const two = cw < 74 && rh >= 150;                           // тясна колона и увеличено → час отгоре, име отдолу
       const wrap = rh >= (two ? 220 : 170);                       // още по-увеличено → името на 2 реда
       const narrow = cw < 74 && !two;                             // телефон: името на 2 реда, за да се чете
-      const fs = cw < 74 ? Math.max(10, Math.min(12, 8.8 + rh * 0.018)) : Math.max(10.5, Math.min(13, 9.6 + rh * 0.028));
+      // телефон: по-дребен шрифт, за да се събират имената (по-едър, ако се увеличи с щипка)
+      const fs = cw < 74 ? (narrow ? Math.max(8.5, Math.min(11, 7.4 + rh * 0.017)) : Math.max(10, Math.min(12, 8.8 + rh * 0.018))) : Math.max(10.5, Math.min(13, 9.6 + rh * 0.028));
       const lines = narrow ? 2 : (two ? 1 : 0) + (wrap ? 2 : 1);
-      const ph = lines === 1 ? Math.round(fs * 1.45 + 5) : Math.round(fs * (1.13 * lines + .1) + 5);
+      const ph = lines === 1 ? Math.round(fs * 1.45 + 5) : Math.round(fs * (1.1 * lines + .1) + (narrow ? 3 : 5));
       if (wrap !== lastWrap) { grid.classList.toggle('mz-wrap', wrap); lastWrap = wrap; }
       grid.style.setProperty('--rh', rh.toFixed(1) + 'px');
       grid.style.setProperty('--fs', fs.toFixed(2) + 'px');
@@ -1105,16 +1106,19 @@
       grid.classList.toggle('mz-narrow', cw < 74 && !two);
       const dn = Math.min(cw < 74 ? 22 : 26, Math.max(18, rh * 0.2));
       grid.style.setProperty('--dn', dn.toFixed(1) + 'px');
-      const fit = Math.max(0, Math.floor((rh - dn - 10) / (ph + 2)));
-      if (fit !== lastFit) { lastFit = fit; paintFit(fit); }
+      const avail = rh - dn - 10;
+      const fit = Math.max(0, Math.floor(avail / (ph + 2)));
+      const fitM = Math.max(0, Math.floor((avail - 15) / (ph + 2)));   // колко събития + ред „+N" (той е нисък)
+      if (fit * 100 + fitM !== lastFit) { lastFit = fit * 100 + fitM; paintFit(fit, fitM); }
       const v2 = $('#mz .mz-v'); if (v2) { v2.textContent = fitNow() ? 'Месец' : Math.round(rh / defRh() * 100) + '%'; v2.title = auto ? 'Целият месец е на екрана' : 'Целият месец на екрана'; }
     }
     // Колко ленти се виждат в седмицата; скритите събития → „+N" под деня (като в Google)
-    function paintFit(fit) {
+    function paintFit(fit, fitM = fit - 1) {
       grid.querySelectorAll('.wk').forEach(wk => {
         const L = +wk.dataset.lanes, layer = wk.lastElementChild, cells = wk.firstElementChild.children;
         layer.querySelectorAll('.cal-more').forEach(x => x.remove());
-        const vis = L <= fit ? L : Math.max(0, fit - 1);
+        const vis = L <= fit ? L : Math.max(0, fitM);
+        layer.style.gridTemplateRows = L <= fit ? '' : `repeat(${vis}, var(--ph)) 15px`;
         const hid = [0, 0, 0, 0, 0, 0, 0];
         for (const ev of layer.children) {
           const h = +ev.dataset.l >= vis; ev.hidden = h;

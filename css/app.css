@@ -1152,3 +1152,9 @@ button, a, input, select, textarea, label, [role="button"] { touch-action: manip
 .att2[data-att=""] .att2-b.clr { display: none; }
 #attClr[hidden], #allIn[hidden] { display: none; }
 .sd-head > strong + .btn, .sd-head .btn + .btn { margin-left: 6px; }
+/* v58: по-дребни, но четими имена в месеца на телефона */
+.mzg.mz-narrow .cal-ev.dot, .mzg.mz-narrow .cal-ev.dot.cal-gcal, .mzg.mz-narrow .cal-ev.dot.cal-gcal.is-known { padding: 0 1px 0 2px; border-radius: 4px; }
+.mzg.mz-narrow .cal-ev.dot span { line-height: 1.1; letter-spacing: -.03em; font-weight: 700; }
+.mzg.mz-narrow .cal-ev.bar { padding: 0 3px; letter-spacing: -.02em; }
+.mzg.mz-narrow .wk-ev .cal-more { font-size: 10px; padding: 0 3px; }
+.wk-ev .cal-more { line-height: 15px; height: 15px; padding-top: 0; padding-bottom: 0; }
